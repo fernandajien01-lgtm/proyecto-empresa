@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Mis solicitudes{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="mb-3">Mis solicitudes de unión</h2>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Empresa</th>
+                        <th>Estado</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for solicitud in solicitudes %}
+                    <tr>
+                        <td>{{ solicitud.empresa.nombre }}</td>
+                        <td>
+                            <span class="badge {% if solicitud.estado == 'PENDIENTE' %}bg-warning{% elif solicitud.estado == 'ACEPTADA' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ solicitud.estado }}
+                            </span>
+                        </td>
+                        <td>{{ solicitud.fecha_creacion|date:'d/m/Y H:i' }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted">No has enviado solicitudes todavía.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}Chat con {{ partner.username }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Chat con {{ partner.username }}</h2>
+            <a href="{% url 'chat_list' %}" class="btn btn-outline-secondary btn-sm">Volver</a>
+        </div>
+
+        <div class="border rounded p-3 mb-3 bg-light" style="max-height: 420px; overflow-y: auto;">
+            {% for mensaje in mensajes %}
+                <div class="mb-2 {% if mensaje.emisor == user %}text-end{% endif %}">
+                    <div class="d-inline-block rounded px-3 py-2 {% if mensaje.emisor == user %}bg-primary text-white{% else %}bg-white border{% endif %}" style="max-width: 80%;">
+                        <div class="small fw-semibold mb-1">{{ mensaje.emisor.username }}</div>
+                        <div>{{ mensaje.mensaje }}</div>
+                        <div class="small mt-1 {% if mensaje.emisor == user %}text-light{% else %}text-muted{% endif %}">{{ mensaje.fecha|date:"d/m/Y H:i" }}</div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="text-muted">No hay mensajes todavía.</div>
+            {% endfor %}
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="input-group">
+                <input type="text" name="mensaje" class="form-control" placeholder="Escribe tu mensaje..." required>
+                <button type="submit" class="btn btn-primary-custom">Enviar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

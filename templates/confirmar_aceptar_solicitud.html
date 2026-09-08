@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirmar aceptación{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h2 class="mb-3">Confirmar aceptación</h2>
+                <p class="text-muted">Para aceptar la solicitud de <strong>{{ solicitud.empleado.username }}</strong>, confirma tu contraseña.</p>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" id="password" name="password" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100">Aceptar solicitud</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

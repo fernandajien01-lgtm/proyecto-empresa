@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ empresa.nombre }}{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="mb-1">{{ empresa.nombre }}</h2>
+                <p class="text-muted mb-0">{{ empresa.descripcion|default:'Sin descripción disponible.' }}</p>
+            </div>
+            {% if user.is_authenticated and user.role == 'EMPLEADO' %}
+                {% if not solicitud %}
+                    <a href="{% url 'solicitar_union_empresa' empresa.id %}" class="btn btn-success">Enviar solicitud</a>
+                {% elif solicitud.estado == 'PENDIENTE' %}
+                    <button class="btn btn-warning" disabled>Esperando solicitud</button>
+                {% elif solicitud.estado == 'ACEPTADA' %}
+                    <button class="btn btn-success" disabled>Solicitud aceptada</button>
+                {% else %}
+                    <button class="btn btn-danger" disabled>Solicitud rechazada</button>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <small class="text-muted d-block">Teléfono</small>
+                    <strong>{{ empresa.telefono|default:'No disponible' }}</strong>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <small class="text-muted d-block">Email</small>
+                    <strong>{{ empresa.email|default:'No disponible' }}</strong>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <small class="text-muted d-block">Dirección</small>
+                    <strong>{{ empresa.direccion|default:'No disponible' }}</strong>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="border rounded p-3 h-100">
+                    <small class="text-muted d-block">Instagram</small>
+                    <strong>{{ empresa.instagram|default:'No disponible' }}</strong>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="border rounded p-3 h-100">
+                    <small class="text-muted d-block">Página web</small>
+                    {% if empresa.pagina_web %}
+                        <a href="{{ empresa.pagina_web }}" target="_blank" rel="noopener" class="fw-semibold">{{ empresa.pagina_web }}</a>
+                    {% else %}
+                        <strong>No disponible</strong>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="mb-0">Productos</h3>
+            <a href="{% url 'producto_list' %}" class="btn btn-outline-secondary btn-sm">Volver al catálogo</a>
+        </div>
+
+        {% if productos %}
+            <div class="row g-4">
+                {% for producto in productos %}
+                <div class="col-md-6 col-xl-4">
+                    <div class="card-product shadow-sm h-100">
+                        {% if producto.imagen %}
+                            <img src="{{ producto.imagen.url }}" class="product-image w-100" alt="{{ producto.nombre }}">
+                        {% else %}
+                            <div class="product-image d-flex align-items-center justify-content-center text-muted bg-light">Sin imagen</div>
+                        {% endif %}
+                        <div class="p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="mb-0">{{ producto.nombre }}</h5>
+                                {% if producto.bajo_stock %}
+                                    <span class="badge badge-danger rounded-pill">Stock bajo</span>
+                                {% else %}
+                                    <span class="badge badge-ok rounded-pill">Disponible</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-muted small mb-2">{{ producto.categoria.nombre }} · SKU: {{ producto.codigo_sku }}</p>
+                            <p class="mb-2">{{ producto.descripcion|truncatechars:120 }}</p>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="fw-bold fs-4 text-dark">${{ producto.precio_venta }}</span>
+                                <span class="text-muted">Stock: {{ producto.cantidad_stock }}</span>
+                            </div>
+                            {% if user.is_authenticated %}
+                                <a href="{% url 'realizar_pedido' producto.pk %}" class="btn btn-primary-custom btn-sm w-100">Comprar</a>
+                            {% else %}
+                                <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-primary-custom btn-sm w-100">Comprar</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">Esta empresa aún no tiene productos disponibles.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

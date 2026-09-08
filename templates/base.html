@@ -1,0 +1,132 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Inventario E-Commerce{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: #f8fafc;
+            color: #1e293b;
+        }
+        .navbar {
+            background: #1e293b;
+        }
+        .navbar-brand, .nav-link, .dropdown-toggle {
+            color: #f8fafc !important;
+        }
+        .sidebar-card {
+            background: #ffffff;
+            border-left: 4px solid #1e293b;
+        }
+        .kpi-card {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            color: #fff;
+            border-radius: 16px;
+        }
+        .alerta-bajo {
+            background: rgba(239, 68, 68, 0.12);
+            border-left: 4px solid #ef4444;
+        }
+        .badge-ok {
+            background: #16a34a;
+        }
+        .badge-warning {
+            background: #f59e0b;
+        }
+        .badge-danger {
+            background: #dc2626;
+        }
+        .btn-primary-custom {
+            background: #1e293b;
+            border-color: #1e293b;
+            color: #ffffff !important;
+        }
+        .btn-primary-custom:hover,
+        .btn-primary-custom:focus,
+        .btn-primary-custom:active {
+            background: #0f172a;
+            border-color: #0f172a;
+            color: #ffffff !important;
+        }
+        .card-product {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            height: 100%;
+        }
+        .product-image {
+            height: 220px;
+            object-fit: cover;
+            background: #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'producto_list' %}">Inventario & Catálogo</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="{% url 'producto_list' %}">Catálogo</a></li>
+                    {% if user.is_authenticated %}
+                        {% if user.role == 'EMPRESA' %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'solicitudes_empresa' %}">Solicitudes</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'categoria_crear' %}">Categorías</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'proveedor_crear' %}">Proveedores</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
+                        {% elif user.role == 'EMPLEADO' %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'movimiento_crear' %}">Movimientos</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'mis_solicitudes' %}">Mis solicitudes</a></li>
+                            {% if user.empresa %}
+                                <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav ms-auto align-items-center">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                                {{ user.username }} · {{ user.role }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#">Perfil</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">Cerrar sesión</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Iniciar sesión</a></li>
+                        <li class="nav-item"><a class="btn btn-light ms-2" href="{% url 'register' %}">Registrarse</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container py-4">
+        {% if messages %}
+            <div class="mb-3">
+                {% for message in messages %}
+                    <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Solicitudes de empleados{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="mb-3">Solicitudes de empleados</h2>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Empresa</th>
+                        <th>Estado</th>
+                        <th>Fecha</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for solicitud in solicitudes %}
+                    <tr>
+                        <td>{{ solicitud.empleado.username }}</td>
+                        <td>{{ solicitud.empresa.nombre }}</td>
+                        <td>
+                            <span class="badge {% if solicitud.estado == 'PENDIENTE' %}bg-warning{% elif solicitud.estado == 'ACEPTADA' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ solicitud.estado }}
+                            </span>
+                        </td>
+                        <td>{{ solicitud.fecha_creacion|date:'d/m/Y H:i' }}</td>
+                        <td>
+                            {% if solicitud.estado == 'PENDIENTE' %}
+                                <a href="{% url 'confirmar_aceptar_solicitud' solicitud.pk %}" class="btn btn-success btn-sm">Aceptar</a>
+                                <a href="{% url 'actualizar_solicitud' solicitud.pk 'RECHAZADA' %}" class="btn btn-outline-danger btn-sm">Rechazar</a>
+                            {% else %}
+                                <span class="text-muted">Sin acciones</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">No hay solicitudes para revisar.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

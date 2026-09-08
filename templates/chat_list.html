@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Chat{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="mb-3">Chat</h2>
+        {% if usuarios %}
+            <div class="list-group">
+                {% for usuario in usuarios %}
+                    <a href="{% url 'chat_con_usuario' usuario.id %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <span>{{ usuario.username }}</span>
+                        <span class="badge bg-primary rounded-pill">Abrir</span>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">No hay conversaciones disponibles.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

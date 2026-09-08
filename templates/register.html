@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Registro{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h2 class="mb-3">Crear cuenta</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        {% for field in form %}
+                            <div class="col-md-6 {% if field.name in 'nombre_empresa,descripcion_empresa,telefono_empresa,direccion_empresa,instagram_empresa,pagina_web_empresa' %}company-field{% endif %}"
+                                 {% if field.name in 'nombre_empresa,descripcion_empresa,telefono_empresa,direccion_empresa,instagram_empresa,pagina_web_empresa' %}data-company-field="true"{% endif %}>
+                                <div class="mb-3">
+                                    <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                    {{ field }}
+                                    {% if field.errors %}
+                                        <div class="text-danger small mt-1">{{ field.errors|join:', ' }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="btn btn-primary-custom">Guardar registro</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const roleSelect = document.querySelector('select[name="role"]');
+        const companyFields = document.querySelectorAll('[data-company-field="true"]');
+
+        function toggleCompanyFields() {
+            const isCompany = roleSelect && roleSelect.value === 'EMPRESA';
+            companyFields.forEach(function (field) {
+                const wrapper = field.closest('.company-field');
+                if (!wrapper) return;
+                wrapper.style.display = isCompany ? 'block' : 'none';
+            });
+        }
+
+        if (roleSelect) {
+            roleSelect.addEventListener('change', toggleCompanyFields);
+            toggleCompanyFields();
+        }
+    });
+</script>
+{% endblock %}
