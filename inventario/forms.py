@@ -89,6 +89,12 @@ class RegistroUsuarioForm(UserCreationForm):
             self.add_error("nombre_empresa", "Las empresas deben indicar un nombre.")
         return cleaned_data
 
+    def clean_username(self):
+        username = self.cleaned_data.get("username")
+        if username and CustomUser.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("Este nombre de usuario ya está en uso. Elige otro.")
+        return username
+
     def save(self, commit=True):
         user = super().save(commit=False)
         user.role = self.cleaned_data["role"]
@@ -166,6 +172,18 @@ class ProductoForm(forms.ModelForm):
         if precio_compra is not None and precio_venta is not None and precio_venta < precio_compra:
             self.add_error("precio_venta", "El precio de venta no puede ser menor al costo de compra.")
         return cleaned_data
+
+
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = CustomUser
+        fields = ("first_name", "last_name", "email", "profile_image")
+        widgets = {
+            "first_name": forms.TextInput(attrs={"class": "form-control"}),
+            "last_name": forms.TextInput(attrs={"class": "form-control"}),
+            "email": forms.EmailInput(attrs={"class": "form-control"}),
+            "profile_image": forms.ClearableFileInput(attrs={"class": "form-control"}),
+        }
 
 
 class MovimientoForm(forms.ModelForm):

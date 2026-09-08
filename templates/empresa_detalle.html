@@ -62,7 +62,15 @@
 
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3 class="mb-0">Productos</h3>
-            <a href="{% url 'producto_list' %}" class="btn btn-outline-secondary btn-sm">Volver al catálogo</a>
+            <div class="d-flex gap-2">
+                <a href="{% url 'producto_list' %}" class="btn btn-outline-secondary btn-sm">Volver al catálogo</a>
+                {% if user.is_authenticated and user.role == 'EMPLEADO' and user.empresa == empresa %}
+                    <form method="post" action="{% url 'dejar_empresa' %}" style="display:inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Dejar empresa</button>
+                    </form>
+                {% endif %}
+            </div>
         </div>
 
         {% if productos %}
@@ -78,11 +86,18 @@
                         <div class="p-3">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <h5 class="mb-0">{{ producto.nombre }}</h5>
-                                {% if producto.bajo_stock %}
-                                    <span class="badge badge-danger rounded-pill">Stock bajo</span>
-                                {% else %}
-                                    <span class="badge badge-ok rounded-pill">Disponible</span>
-                                {% endif %}
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if user.is_authenticated and user.role == 'EMPRESA' and empresa == user.empresa %}
+                                        <a href="{% url 'producto_editar' producto.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                                    {% elif user.is_authenticated and user.role == 'EMPLEADO' and solicitud and solicitud.estado == 'ACEPTADA' and user.empresa == empresa %}
+                                        <a href="{% url 'producto_editar' producto.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                                    {% endif %}
+                                    {% if producto.bajo_stock %}
+                                        <span class="badge badge-danger rounded-pill">Stock bajo</span>
+                                    {% else %}
+                                        <span class="badge badge-ok rounded-pill">Disponible</span>
+                                    {% endif %}
+                                </div>
                             </div>
                             <p class="text-muted small mb-2">{{ producto.categoria.nombre }} · SKU: {{ producto.codigo_sku }}</p>
                             <p class="mb-2">{{ producto.descripcion|truncatechars:120 }}</p>

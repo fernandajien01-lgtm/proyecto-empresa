@@ -36,6 +36,70 @@ from .models import (
 )
 
 
+@login_required
+def dejar_empresa(request):
+    if request.user.role != "EMPLEADO":
+        messages.warning(request, "Solo los empleados pueden dejar una empresa.")
+        return redirect("producto_list")
+    if request.method == "POST":
+        empleado = request.user
+        empresa = empleado.empresa
+        # delete movimientos relacionados del empleado con esta empresa
+        if empresa is not None:
+            Movimiento.objects.filter(usuario=empleado, producto__empresa=empresa).delete()
+        empleado.empresa = None
+        empleado.save()
+        # Remove pending solicitudes if any
+        SolicitudEmpleado.objects.filter(empleado=empleado).delete()
+        messages.success(request, "Has dejado la empresa correctamente.")
+    return redirect("producto_list")
+
+
+@login_required
+def quitar_empleado(request, empleado_id):
+    if request.user.role != "EMPRESA":
+        return redirect("producto_list")
+    empleado = get_object_or_404(CustomUser, pk=empleado_id, empresa=request.user.empresa)
+    if request.method == "POST":
+        empresa = request.user.empresa
+        # delete movimientos relacionados del empleado con esta empresa
+        Movimiento.objects.filter(usuario=empleado, producto__empresa=empresa).delete()
+        empleado.empresa = None
+        empleado.save()
+        SolicitudEmpleado.objects.filter(empleado=empleado).delete()
+        messages.success(request, f"Se ha removido a {empleado.username} de la empresa.")
+    return redirect("dashboard")
+
+
+@login_required
+def editar_perfil(request):
+    if request.user.role not in {"CLIENTE", "EMPLEADO", "EMPRESA"}:
+        return redirect("producto_list")
+    if request.method == "POST":
+        from .forms import UserProfileForm
+        form = UserProfileForm(request.POST, request.FILES, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Perfil actualizado correctamente.")
+            return redirect("producto_list")
+    else:
+        from .forms import UserProfileForm
+        form = UserProfileForm(instance=request.user)
+    return render(request, "profile_form.html", {"form": form})
+
+
+@login_required
+def confirmar_eliminar_cuenta(request):
+    # show confirmation and process deletion
+    if request.method == "POST":
+        user = request.user
+        logout(request)
+        user.delete()
+        messages.success(request, "Tu cuenta ha sido eliminada correctamente.")
+        return redirect("producto_list")
+    return render(request, "confirmar_eliminar_cuenta.html")
+
+
 def register(request):
     ensure_default_categorias()
     if request.method == "POST":
@@ -140,9 +204,14 @@ def confirmar_aceptar_solicitud(request, pk):
     if request.method == "POST":
         password = request.POST.get("password", "")
         if request.user.check_password(password):
+            empleado = solicitud.empleado
+            # Prevent assigning an employee who already belongs to another company
+            if empleado.empresa is not None and empleado.empresa != solicitud.empresa:
+                messages.error(request, f"El empleado {empleado.username} ya pertenece a otra empresa. No se puede aceptar la solicitud.")
+                return redirect("solicitudes_empresa")
+
             solicitud.estado = SolicitudEmpleado.ACEPTADA
             solicitud.save()
-            empleado = solicitud.empleado
             empleado.empresa = solicitud.empresa
             empleado.role = "EMPLEADO"
             empleado.save()
@@ -185,19 +254,57 @@ def solicitar_union_empresa(request, empresa_id):
     if request.user.role != "EMPLEADO":
         messages.warning(request, "Solo los empleados pueden enviar solicitud a una empresa.")
         return redirect("producto_list")
-
     empresa = get_object_or_404(Empresa, pk=empresa_id)
+
+    # Check for recent cancellation cooldown
+    reciente = SolicitudEmpleado.objects.filter(empleado=request.user, empresa=empresa, estado=SolicitudEmpleado.CANCELADA).order_by("-fecha_cancelacion").first()
+    if reciente and reciente.fecha_cancelacion:
+        from django.utils import timezone
+        delta = timezone.now() - reciente.fecha_cancelacion
+        if delta.total_seconds() < 24 * 3600:
+            remaining = 24 * 3600 - int(delta.total_seconds())
+            hours = remaining // 3600
+            minutes = (remaining % 3600) // 60
+            messages.warning(request, f"No puedes enviar otra solicitud aún. Intenta de nuevo en {hours}h {minutes}m.")
+            return redirect("empresa_detalle", empresa_id=empresa.id)
+
     solicitud, created = SolicitudEmpleado.objects.get_or_create(empleado=request.user, empresa=empresa)
 
     if created:
         solicitud.estado = SolicitudEmpleado.PENDIENTE
+        solicitud.fecha_cancelacion = None
         solicitud.save()
         messages.success(request, f"Solicitud enviada a {empresa.nombre}.")
     elif solicitud.estado == SolicitudEmpleado.PENDIENTE:
         messages.info(request, f"Ya tienes una solicitud pendiente para {empresa.nombre}.")
     else:
-        messages.success(request, f"Tu solicitud a {empresa.nombre} ya fue procesada.")
+        # If previously processed (ACEPTADA/RECHAZADA/CANCELADA older than cooldown), allow re-send by updating
+        solicitud.estado = SolicitudEmpleado.PENDIENTE
+        solicitud.fecha_cancelacion = None
+        solicitud.save()
+        messages.success(request, f"Solicitud reenviada a {empresa.nombre}.")
 
+    return redirect("empresa_detalle", empresa_id=empresa.id)
+
+
+@login_required
+def cancelar_solicitud(request, empresa_id):
+    if request.user.role != "EMPLEADO":
+        messages.warning(request, "Solo los empleados pueden cancelar solicitudes.")
+        return redirect("producto_list")
+
+    empresa = get_object_or_404(Empresa, pk=empresa_id)
+    solicitud = SolicitudEmpleado.objects.filter(empleado=request.user, empresa=empresa, estado=SolicitudEmpleado.PENDIENTE).first()
+    if solicitud:
+        if request.method == "POST":
+            from django.utils import timezone
+            solicitud.estado = SolicitudEmpleado.CANCELADA
+            solicitud.fecha_cancelacion = timezone.now()
+            solicitud.save()
+            messages.success(request, f"Solicitud a {empresa.nombre} cancelada. Podrás reenviar otra solicitud en 24 horas.")
+            return redirect("producto_list")
+    else:
+        messages.info(request, "No tienes una solicitud pendiente para esa empresa.")
     return redirect("empresa_detalle", empresa_id=empresa.id)
 
 
@@ -332,15 +439,31 @@ def producto_crear(request):
 
 @login_required
 def producto_editar(request, pk):
-    if request.user.role != "EMPRESA":
+    if request.user.role not in {"EMPRESA", "EMPLEADO"}:
         return redirect("producto_list")
-    producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa)
+
+    if request.user.role == "EMPRESA":
+        producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa)
+    else:
+        if request.user.empresa is None:
+            messages.warning(request, "Debes pertenecer a una empresa para editar productos.")
+            return redirect("producto_list")
+        solicitud = SolicitudEmpleado.objects.filter(
+            empleado=request.user,
+            empresa=request.user.empresa,
+            estado=SolicitudEmpleado.ACEPTADA,
+        ).exists()
+        if not solicitud:
+            messages.warning(request, "Solo puedes editar productos si tu solicitud a la empresa fue aceptada.")
+            return redirect("producto_list")
+        producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa)
+
     if request.method == "POST":
         form = ProductoForm(request.POST, request.FILES, instance=producto)
         if form.is_valid():
             form.save()
             messages.success(request, "Producto actualizado correctamente.")
-            return redirect("dashboard")
+            return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
     else:
         form = ProductoForm(instance=producto)
     return render(request, "producto_form.html", {"form": form, "accion": "Editar", "producto": producto})
@@ -409,15 +532,25 @@ def producto_list(request):
         if busqueda_empresa:
             empresas = empresas.filter(nombre__icontains=busqueda_empresa)
 
-        solicitudes_empresa = {
-            item["empresa_id"]: item["estado"]
-            for item in SolicitudEmpleado.objects.filter(empleado=request.user).values("empresa_id", "estado")
-        }
+        # Map empresa id to SolicitudEmpleado instance (if any)
+        solicitudes = {s.empresa_id: s for s in SolicitudEmpleado.objects.filter(empleado=request.user)}
         empresas_data = []
+        from django.utils import timezone
         for empresa in empresas:
+            sol = solicitudes.get(empresa.id)
+            cooldown_text = None
+            if sol and sol.estado == SolicitudEmpleado.CANCELADA and sol.fecha_cancelacion:
+                delta = timezone.now() - sol.fecha_cancelacion
+                remaining = max(0, 24 * 3600 - int(delta.total_seconds()))
+                if remaining > 0:
+                    hours = remaining // 3600
+                    minutes = (remaining % 3600) // 60
+                    seconds = remaining % 60
+                    cooldown_text = f"{hours}h {minutes}m {seconds}s"
             empresas_data.append({
                 "empresa": empresa,
-                "estado_solicitud": solicitudes_empresa.get(empresa.id),
+                "solicitud": sol,
+                "cooldown_text": cooldown_text,
             })
 
         context = {

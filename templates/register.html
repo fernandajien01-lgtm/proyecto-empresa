@@ -8,11 +8,11 @@
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <h2 class="mb-3">Crear cuenta</h2>
-                <form method="post">
+                <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="row g-3">
                         {% for field in form %}
-                            <div class="col-md-6 {% if field.name in 'nombre_empresa,descripcion_empresa,telefono_empresa,direccion_empresa,instagram_empresa,pagina_web_empresa' %}company-field{% endif %}"
+                            <div class="col-md-6 {% if field.name in 'nombre_empresa,descripcion_empresa,telefono_empresa,direccion_empresa,instagram_empresa,pagina_web_empresa' %}company-field{% endif %} {% if field.name in 'first_name,last_name' %}name-field{% endif %}"
                                  {% if field.name in 'nombre_empresa,descripcion_empresa,telefono_empresa,direccion_empresa,instagram_empresa,pagina_web_empresa' %}data-company-field="true"{% endif %}>
                                 <div class="mb-3">
                                     <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
@@ -48,6 +48,18 @@
         if (roleSelect) {
             roleSelect.addEventListener('change', toggleCompanyFields);
             toggleCompanyFields();
+        }
+        // hide name fields when registering as company
+        function toggleNameFields() {
+            const isCompany = roleSelect && roleSelect.value === 'EMPRESA';
+            document.querySelectorAll('.name-field').forEach(function(el) {
+                el.style.display = isCompany ? 'none' : 'block';
+            });
+        }
+
+        if (roleSelect) {
+            roleSelect.addEventListener('change', toggleNameFields);
+            toggleNameFields();
         }
     });
 </script>

@@ -19,6 +19,7 @@ class CustomUser(AbstractUser):
         blank=True,
         related_name="empleados",
     )
+    profile_image = models.ImageField(upload_to="profiles/%Y/%m/%d/", blank=True, null=True)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
@@ -122,16 +123,19 @@ class SolicitudEmpleado(models.Model):
     PENDIENTE = "PENDIENTE"
     ACEPTADA = "ACEPTADA"
     RECHAZADA = "RECHAZADA"
+    CANCELADA = "CANCELADA"
     ESTADO_CHOICES = (
         (PENDIENTE, "Pendiente"),
         (ACEPTADA, "Aceptada"),
         (RECHAZADA, "Rechazada"),
+        (CANCELADA, "Cancelada"),
     )
 
     empleado = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="solicitudes")
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="solicitudes_empleado")
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=PENDIENTE)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_cancelacion = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ("empleado", "empresa")

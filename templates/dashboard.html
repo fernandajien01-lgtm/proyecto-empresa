@@ -132,6 +132,7 @@
                                 <th>Stock</th>
                                 <th>Stock mínimo</th>
                                 <th>Estado</th>
+                                <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -141,10 +142,13 @@
                                 <td>{{ producto.cantidad_stock }}</td>
                                 <td>{{ producto.stock_minimo }}</td>
                                 <td><span class="badge badge-danger rounded-pill">Bajo</span></td>
+                                <td>
+                                    <a href="{% url 'producto_editar' producto.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                                </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="4" class="text-center text-muted">No hay alertas de stock.</td>
+                                <td colspan="5" class="text-center text-muted">No hay alertas de stock.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -169,6 +173,13 @@
                         <div class="mt-2">
                             <a href="{% url 'confirmar_aceptar_solicitud' solicitud.pk %}" class="btn btn-success btn-sm">Aceptar</a>
                             <a href="{% url 'actualizar_solicitud' solicitud.pk 'RECHAZADA' %}" class="btn btn-outline-danger btn-sm">Rechazar</a>
+                        </div>
+                        {% elif solicitud.estado == 'ACEPTADA' %}
+                        <div class="mt-2">
+                            <form method="post" action="{% url 'quitar_empleado' solicitud.empleado.id %}" style="display:inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm">Quitar empleado</button>
+                            </form>
                         </div>
                         {% endif %}
                     </div>

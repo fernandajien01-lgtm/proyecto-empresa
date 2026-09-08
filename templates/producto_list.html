@@ -7,15 +7,25 @@
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body">
         <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-8">
+            <div class="col-md-4">
                 <label for="empresa" class="form-label fw-semibold">Buscar empresa</label>
                 <input type="text" id="empresa" name="empresa" value="{{ busqueda_empresa }}" class="form-control" placeholder="Ej. Nike, Ferretería X, etc.">
             </div>
-            <div class="col-md-4 d-flex gap-2">
-                <button type="submit" class="btn btn-primary-custom w-100">Buscar</button>
-                {% if busqueda_empresa %}
-                    <a href="{% url 'producto_list' %}" class="btn btn-outline-secondary w-100">Limpiar</a>
-                {% endif %}
+            <div class="col-md-4">
+                <label for="categoria" class="form-label fw-semibold">Categoría</label>
+                <select id="categoria" name="categoria" class="form-select">
+                    <option value="">Todas</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.nombre }}" {% if busqueda_categoria == cat.nombre %}selected{% endif %}>{{ cat.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="producto" class="form-label fw-semibold">Nombre del producto</label>
+                <input type="text" id="producto" name="producto" value="{{ busqueda_producto }}" class="form-control" placeholder="Ej. camiseta, peine">
+            </div>
+            <div class="col-md-1 d-flex">
+                <button type="submit" class="btn btn-primary-custom w-100 align-self-end">Buscar</button>
             </div>
         </form>
     </div>
@@ -33,15 +43,40 @@
                     <div class="mt-auto d-grid gap-2">
                         <a href="{% url 'empresa_detalle' item.empresa.id %}" class="btn btn-outline-primary">Ver productos</a>
                         {% if user.is_authenticated and user.role == 'EMPLEADO' %}
-                            {% if item.estado_solicitud == 'PENDIENTE' %}
-                                <button type="button" class="btn btn-warning" disabled>Esperando solicitud</button>
-                            {% elif item.estado_solicitud == 'ACEPTADA' %}
-                                <button type="button" class="btn btn-success" disabled>Solicitud aceptada</button>
-                            {% elif item.estado_solicitud == 'RECHAZADA' %}
-                                <button type="button" class="btn btn-danger" disabled>Solicitud rechazada</button>
-                            {% else %}
-                                <a href="{% url 'solicitar_union_empresa' item.empresa.id %}" class="btn btn-success">Enviar solicitud</a>
-                            {% endif %}
+                            {% with solicitud=item.solicitud %}
+                                {% if solicitud %}
+                                    {% if solicitud.estado == 'PENDIENTE' %}
+                                        <div class="d-grid gap-2">
+                                            <button type="button" class="btn btn-warning" disabled>Esperando solicitud</button>
+                                            <form method="post" action="{% url 'cancelar_solicitud' item.empresa.id %}">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-outline-danger">Cancelar solicitud</button>
+                                            </form>
+                                        </div>
+                                    {% elif solicitud.estado == 'ACEPTADA' %}
+                                        <button type="button" class="btn btn-success" disabled>Solicitud aceptada</button>
+                                    {% elif solicitud.estado == 'RECHAZADA' %}
+                                        <button type="button" class="btn btn-danger" disabled>Solicitud rechazada</button>
+                                    {% elif solicitud.estado == 'CANCELADA' %}
+                                        <div class="d-grid gap-2">
+                                            <button type="button" class="btn btn-secondary" disabled>Solicitud cancelada</button>
+                                            {% if item.cooldown_text %}
+                                                <small class="text-muted">Puedes reenviar en {{ item.cooldown_text }}.</small>
+                                            {% else %}
+                                                <small class="text-muted">Puedes reenviar en 24 horas.</small>
+                                            {% endif %}
+                                        </div>
+                                    {% else %}
+                                        <a href="{% url 'solicitar_union_empresa' item.empresa.id %}" class="btn btn-success">Enviar solicitud</a>
+                                    {% endif %}
+                                {% else %}
+                                    {% if not user.empresa %}
+                                        <a href="{% url 'solicitar_union_empresa' item.empresa.id %}" class="btn btn-success">Enviar solicitud</a>
+                                    {% else %}
+                                        <button type="button" class="btn btn-secondary" disabled>Ya perteneces a una empresa</button>
+                                    {% endif %}
+                                {% endif %}
+                            {% endwith %}
                         {% endif %}
                     </div>
                 </div>
@@ -64,13 +99,27 @@
                     <div class="product-image d-flex align-items-center justify-content-center text-muted bg-light">Sin imagen</div>
                 {% endif %}
                 <div class="p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <a href="{% url 'empresa_detalle' producto.empresa.id %}" class="h6 mb-0 text-decoration-none">{{ producto.empresa.nombre }}</a>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <a href="{% url 'empresa_detalle' producto.empresa.id %}" class="btn btn-sm btn-outline-primary">Ver productos</a>
+                        </div>
+                    </div>
+                    <hr class="my-2">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <h5 class="mb-0">{{ producto.nombre }}</h5>
-                        {% if producto.bajo_stock %}
-                            <span class="badge badge-danger rounded-pill">Stock bajo</span>
-                        {% else %}
-                            <span class="badge badge-ok rounded-pill">Disponible</span>
-                        {% endif %}
+                        <div class="d-flex align-items-center gap-2">
+                            {% if user.is_authenticated and user.role == 'EMPRESA' and producto.empresa == user.empresa %}
+                                <a href="{% url 'producto_editar' producto.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                            {% endif %}
+                            {% if producto.bajo_stock %}
+                                <span class="badge badge-danger rounded-pill">Stock bajo</span>
+                            {% else %}
+                                <span class="badge badge-ok rounded-pill">Disponible</span>
+                            {% endif %}
+                        </div>
                     </div>
                     <p class="text-muted small mb-1">Empresa: <strong>{{ producto.empresa.nombre }}</strong></p>
                     <p class="text-muted small mb-2">{{ producto.categoria.nombre }} · SKU: {{ producto.codigo_sku }}</p>
@@ -142,34 +191,6 @@
                             <p class="text-muted small mb-0">Sin comentarios todavía.</p>
                         {% endfor %}
                     </div>
-
-                    {% if user.is_authenticated and user.role != 'EMPRESA' %}
-                        <button type="button" class="btn btn-primary-custom w-100 mt-3 mb-2" data-bs-toggle="collapse" data-bs-target="#comentario-{{ producto.id }}">
-                            Comentar
-                        </button>
-                        <div id="comentario-{{ producto.id }}" class="collapse">
-                            <form method="post" class="border rounded p-3 bg-light">
-                                {% csrf_token %}
-                                <input type="hidden" name="producto_id" value="{{ producto.id }}">
-                                <label class="form-label small fw-semibold mb-1">Calificación</label>
-                                <select name="calificacion" class="form-select mb-2">
-                                    <option value="5">5 - Excelente</option>
-                                    <option value="4">4 - Muy bueno</option>
-                                    <option value="3">3 - Bueno</option>
-                                    <option value="2">2 - Regular</option>
-                                    <option value="1">1 - Malo</option>
-                                </select>
-                                <textarea name="contenido" class="form-control mb-2" rows="3" placeholder="Escribe tu comentario sobre este producto..."></textarea>
-                                <button type="submit" class="btn btn-primary-custom w-100">Publicar comentario</button>
-                            </form>
-                        </div>
-                    {% elif user.is_authenticated and user.role == 'EMPRESA' %}
-                        <div class="alert alert-secondary mt-3 mb-0 small">La empresa no puede comentar productos.</div>
-                    {% else %}
-                        <div class="alert alert-warning mt-3 mb-0 small">
-                            Debes <a href="{% url 'register' %}" class="alert-link fw-semibold">registrarte</a> para comentar este producto.
-                        </div>
-                    {% endif %}
                 </div>
             </div>
         </div>

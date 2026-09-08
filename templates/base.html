@@ -79,27 +79,32 @@
                             <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'solicitudes_empresa' %}">Solicitudes</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'categoria_crear' %}">Categorías</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'proveedor_crear' %}">Proveedores</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
                         {% elif user.role == 'EMPLEADO' %}
-                            <li class="nav-item"><a class="nav-link" href="{% url 'movimiento_crear' %}">Movimientos</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'mis_solicitudes' %}">Mis solicitudes</a></li>
                             {% if user.empresa %}
+                                <li class="nav-item"><a class="nav-link" href="{% url 'movimiento_crear' %}">Movimientos</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
                             {% endif %}
+                            <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{% url 'mis_solicitudes' %}">Mis solicitudes</a></li>
                         {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav ms-auto align-items-center">
                     {% if user.is_authenticated %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                                {{ user.username }} · {{ user.role }}
+                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-bs-toggle="dropdown">
+                                {% if user.profile_image %}
+                                    <img src="{{ user.profile_image.url }}" alt="avatar" class="rounded-circle me-2" style="width:32px; height:32px; object-fit:cover;">
+                                {% else %}
+                                    <span class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center me-2" style="width:32px; height:32px;">{{ user.username|slice:":1"|upper }}</span>
+                                {% endif %}
+                                <span>{{ user.username }} · {{ user.role }}</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="#">Perfil</a></li>
+                                <li><a class="dropdown-item" href="{% url 'editar_perfil' %}">Perfil</a></li>
+                                <li><a class="dropdown-item text-danger" href="{% url 'confirmar_eliminar_cuenta' %}">Eliminar cuenta</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{% url 'logout' %}">Cerrar sesión</a></li>
                             </ul>
