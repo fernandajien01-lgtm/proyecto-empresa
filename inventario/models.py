@@ -30,6 +30,7 @@ class Empresa(models.Model):
     descripcion = models.TextField(blank=True)
     telefono = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
+    rif = models.CharField(max_length=50, blank=True, default="")
     direccion = models.CharField(max_length=255, blank=True)
     instagram = models.CharField(max_length=255, blank=True, default="")
     pagina_web = models.URLField(max_length=255, blank=True, default="")

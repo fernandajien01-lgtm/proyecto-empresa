@@ -79,7 +79,6 @@
                             <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'solicitudes_empresa' %}">Solicitudes</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'proveedor_crear' %}">Proveedores</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
                         {% elif user.role == 'EMPLEADO' %}
                             {% if user.empresa %}

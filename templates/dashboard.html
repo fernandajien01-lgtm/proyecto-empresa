@@ -10,8 +10,6 @@
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a href="{% url 'empresa_editar' %}" class="btn btn-outline-secondary">Editar datos de la empresa</a>
-        <a href="{% url 'categoria_crear' %}" class="btn btn-outline-primary">+ Categoría</a>
-        <a href="{% url 'proveedor_crear' %}" class="btn btn-outline-success">+ Proveedor</a>
         <a href="{% url 'producto_crear' %}" class="btn btn-primary-custom">+ Nuevo producto</a>
     </div>
 </div>
@@ -37,7 +35,7 @@
                 <strong>{{ user.empresa.direccion|default:'Sin dirección' }}</strong>
             </div>
             <div class="col-md-6">
-                <label class="text-muted small d-block">Instagram</label>
+                <label class="text-muted small d-block">Redes sociales</label>
                 <strong>{{ user.empresa.instagram|default:'No registrado' }}</strong>
             </div>
             <div class="col-md-6">

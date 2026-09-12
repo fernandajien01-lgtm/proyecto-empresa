@@ -22,17 +22,16 @@ class ResenaFormTests(TestCase):
 class RegistroUsuarioFormTests(TestCase):
     def test_company_registration_accepts_optional_social_and_website_fields(self):
         form = RegistroUsuarioForm(data={
-            "username": "empresa1",
+            "role": "EMPRESA",
+            "username": "",
             "email": "empresa1@example.com",
             "first_name": "",
             "last_name": "",
-            "role": "EMPRESA",
             "nombre_empresa": "Mi tienda",
+            "rif_empresa": "J-12345678",
             "descripcion_empresa": "Venta de productos",
             "telefono_empresa": "5551234",
             "direccion_empresa": "Calle 123",
-            "instagram_empresa": "@mitienda",
-            "pagina_web_empresa": "https://mitienda.com",
             "password1": "SecurePass123!",
             "password2": "SecurePass123!",
         })

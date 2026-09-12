@@ -12,7 +12,23 @@
                     {% csrf_token %}
                     {% for field in form %}
                         <div class="mb-3">
-                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                            <label for="{{ field.id_for_label }}" class="form-label d-flex align-items-center gap-2 mb-2">
+                                <span>{{ field.label }}</span>
+                                <span class="text-info" title="{{ field.help_text|default:'Información adicional' }}" style="cursor:pointer; font-size: 0.9rem;">ℹ</span>
+                            </label>
+
+                            {% if field.name == 'imagen' %}
+                                {% if producto and producto.imagen %}
+                                    <div class="mb-2">
+                                        <img id="imagen-preview" src="{{ producto.imagen.url }}" alt="Imagen actual" style="max-height:180px; object-fit:cover; border-radius:10px; border:1px solid #dfe3e8; background:#f8fafc; display:block;">
+                                    </div>
+                                {% else %}
+                                    <div class="mb-2">
+                                        <img id="imagen-preview" src="" alt="Vista previa" style="max-height:180px; object-fit:cover; border-radius:10px; border:1px solid #dfe3e8; background:#f8fafc; display:none;">
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+
                             {{ field }}
                             {% if field.errors %}
                                 <div class="text-danger small mt-1">{{ field.errors|join:', ' }}</div>
@@ -22,6 +38,31 @@
                     <button type="submit" class="btn btn-primary-custom">Guardar</button>
                     <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">Cancelar</a>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const fileInput = document.querySelector('input[type="file"][name="imagen"]');
+        const preview = document.getElementById('imagen-preview');
+
+        if (fileInput && preview) {
+            fileInput.addEventListener('change', function (event) {
+                const file = event.target.files && event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+    });
+</script>
             </div>
         </div>
     </div>

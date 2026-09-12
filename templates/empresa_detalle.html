@@ -44,7 +44,7 @@
             </div>
             <div class="col-md-6">
                 <div class="border rounded p-3 h-100">
-                    <small class="text-muted d-block">Instagram</small>
+                    <small class="text-muted d-block">Redes sociales</small>
                     <strong>{{ empresa.instagram|default:'No disponible' }}</strong>
                 </div>
             </div>
@@ -99,16 +99,14 @@
                                     {% endif %}
                                 </div>
                             </div>
-                            <p class="text-muted small mb-2">{{ producto.categoria.nombre }} · SKU: {{ producto.codigo_sku }}</p>
+                            <p class="text-muted small mb-2">{{ producto.categoria.nombre }}</p>
                             <p class="mb-2">{{ producto.descripcion|truncatechars:120 }}</p>
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <span class="fw-bold fs-4 text-dark">${{ producto.precio_venta }}</span>
                                 <span class="text-muted">Stock: {{ producto.cantidad_stock }}</span>
                             </div>
-                            {% if user.is_authenticated %}
-                                <a href="{% url 'realizar_pedido' producto.pk %}" class="btn btn-primary-custom btn-sm w-100">Comprar</a>
-                            {% else %}
-                                <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-primary-custom btn-sm w-100">Comprar</a>
+                            {% if user.is_authenticated and user.role == 'CLIENTE' %}
+                                <a href="{% url 'realizar_pedido' producto.pk %}" class="btn btn-primary-custom btn-sm w-100 mt-2">Comprar</a>
                             {% endif %}
                         </div>
                     </div>

@@ -20,11 +20,22 @@ class RegistroUsuarioForm(UserCreationForm):
         label="Tipo de usuario",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
-    email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={"class": "form-control"}))
+    username = forms.CharField(
+        required=False,
+        label="Nombre de usuario",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    email = forms.EmailField(widget=forms.EmailInput(attrs={"class": "form-control"}))
     nombre_empresa = forms.CharField(
         max_length=150,
         required=False,
         label="Nombre de la empresa",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    rif_empresa = forms.CharField(
+        max_length=50,
+        required=False,
+        label="RIF",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     descripcion_empresa = forms.CharField(
@@ -44,32 +55,20 @@ class RegistroUsuarioForm(UserCreationForm):
         label="Dirección de la empresa",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
-    instagram_empresa = forms.CharField(
-        max_length=255,
-        required=False,
-        label="Instagram de la empresa",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    pagina_web_empresa = forms.URLField(
-        required=False,
-        label="Página web de la empresa",
-        widget=forms.URLInput(attrs={"class": "form-control"}),
-    )
 
     class Meta:
         model = CustomUser
         fields = (
+            "role",
             "username",
             "email",
             "first_name",
             "last_name",
-            "role",
             "nombre_empresa",
+            "rif_empresa",
             "descripcion_empresa",
             "telefono_empresa",
             "direccion_empresa",
-            "instagram_empresa",
-            "pagina_web_empresa",
             "password1",
             "password2",
         )
@@ -87,25 +86,47 @@ class RegistroUsuarioForm(UserCreationForm):
         role = cleaned_data.get("role")
         if role == "EMPRESA" and not cleaned_data.get("nombre_empresa"):
             self.add_error("nombre_empresa", "Las empresas deben indicar un nombre.")
+        if role == "EMPRESA" and not cleaned_data.get("rif_empresa"):
+            self.add_error("rif_empresa", "Las empresas deben indicar un RIF.")
+        if role == "EMPRESA" and not cleaned_data.get("username"):
+            nombre_base = (cleaned_data.get("nombre_empresa") or "empresa").strip().lower()
+            username_base = "".join(ch for ch in nombre_base if ch.isalnum() or ch in "_") or "empresa"
+            username_base = username_base[:20]
+            base = username_base
+            contador = 1
+            while CustomUser.objects.filter(username__iexact=base).exists():
+                base = f"{username_base}{contador}"
+                contador += 1
+            cleaned_data["username"] = base
         return cleaned_data
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].required = False
+        if self.instance and self.instance.role == "EMPRESA":
+            self.fields["username"].required = False
 
     def clean_username(self):
         username = self.cleaned_data.get("username")
-        if username and CustomUser.objects.filter(username__iexact=username).exists():
+        if not username:
+            return username
+        if CustomUser.objects.filter(username__iexact=username).exists():
             raise forms.ValidationError("Este nombre de usuario ya está en uso. Elige otro.")
         return username
 
     def save(self, commit=True):
         user = super().save(commit=False)
         user.role = self.cleaned_data["role"]
+        user.username = self.cleaned_data.get("username") or user.username or "empresa"
         if user.role == "EMPRESA":
+            nombre_empresa = self.cleaned_data.get("nombre_empresa", "")
+            user.username = user.username or (nombre_empresa.strip().lower().replace(" ", "_")[:20] or "empresa")
             empresa = Empresa.objects.create(
-                nombre=self.cleaned_data["nombre_empresa"],
+                nombre=nombre_empresa,
                 descripcion=self.cleaned_data.get("descripcion_empresa", ""),
                 telefono=self.cleaned_data.get("telefono_empresa", ""),
+                rif=self.cleaned_data.get("rif_empresa", ""),
                 direccion=self.cleaned_data.get("direccion_empresa", ""),
-                instagram=self.cleaned_data.get("instagram_empresa", ""),
-                pagina_web=self.cleaned_data.get("pagina_web_empresa", ""),
                 email=user.email or "",
             )
             user.empresa = empresa
@@ -122,6 +143,7 @@ class EmpresaForm(forms.ModelForm):
             "descripcion",
             "telefono",
             "email",
+            "rif",
             "direccion",
             "instagram",
             "pagina_web",
@@ -131,10 +153,15 @@ class EmpresaForm(forms.ModelForm):
             "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
             "telefono": forms.TextInput(attrs={"class": "form-control"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
+            "rif": forms.TextInput(attrs={"class": "form-control"}),
             "direccion": forms.TextInput(attrs={"class": "form-control"}),
             "instagram": forms.TextInput(attrs={"class": "form-control"}),
             "pagina_web": forms.URLInput(attrs={"class": "form-control"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["instagram"].label = "Redes sociales"
 
 
 class ProductoForm(forms.ModelForm):
@@ -144,10 +171,7 @@ class ProductoForm(forms.ModelForm):
             "nombre",
             "descripcion",
             "imagen",
-            "codigo_sku",
             "categoria",
-            "proveedor",
-            "precio_compra",
             "precio_venta",
             "cantidad_stock",
             "stock_minimo",
@@ -156,22 +180,51 @@ class ProductoForm(forms.ModelForm):
             "nombre": forms.TextInput(attrs={"class": "form-control"}),
             "descripcion": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
             "imagen": forms.ClearableFileInput(attrs={"class": "form-control"}),
-            "codigo_sku": forms.TextInput(attrs={"class": "form-control"}),
             "categoria": forms.Select(attrs={"class": "form-select"}),
-            "proveedor": forms.Select(attrs={"class": "form-select"}),
-            "precio_compra": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "precio_venta": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "cantidad_stock": forms.NumberInput(attrs={"class": "form-control"}),
             "stock_minimo": forms.NumberInput(attrs={"class": "form-control"}),
         }
+        help_texts = {
+            "nombre": "Nombre visible para los clientes en el catálogo.",
+            "descripcion": "Describe el producto con detalles útiles para la venta.",
+            "imagen": "La imagen se mostrará en el catálogo.",
+            "categoria": "Selecciona la categoría a la que pertenece el producto.",
+            "precio_venta": "Precio final que verá el cliente.",
+            "cantidad_stock": "Cantidad disponible actualmente en inventario.",
+            "stock_minimo": "Monto mínimo sugerido antes de reponer stock.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields.pop("codigo_sku", None)
+        self.fields.pop("proveedor", None)
+        self.fields.pop("precio_compra", None)
 
     def clean(self):
         cleaned_data = super().clean()
-        precio_compra = cleaned_data.get("precio_compra")
-        precio_venta = cleaned_data.get("precio_venta")
-        if precio_compra is not None and precio_venta is not None and precio_venta < precio_compra:
-            self.add_error("precio_venta", "El precio de venta no puede ser menor al costo de compra.")
         return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if not instance.codigo_sku:
+            import uuid
+            instance.codigo_sku = f"AUTO-{uuid.uuid4().hex[:8].upper()}"
+        if not instance.proveedor_id:
+            default_proveedor, _ = Proveedor.objects.get_or_create(
+                nombre_negocio="Proveedor general",
+                defaults={
+                    "telefono": "000000000",
+                    "email": "",
+                    "direccion": "General",
+                },
+            )
+            instance.proveedor = default_proveedor
+        if instance.precio_compra is None:
+            instance.precio_compra = instance.precio_venta
+        if commit:
+            instance.save()
+        return instance
 
 
 class UserProfileForm(forms.ModelForm):

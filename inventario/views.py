@@ -217,7 +217,7 @@ def confirmar_aceptar_solicitud(request, pk):
             empleado.save()
             messages.success(request, f"Solicitud aceptada para {empleado.username}.")
             return redirect("solicitudes_empresa")
-        messages.error(request, "La contraseña no es correcta. No se pudo aceptar la solicitud.")
+        messages.error(request, "Contraseña incorrecta, no se pudo aceptar la solicitud.")
 
     return render(request, "confirmar_aceptar_solicitud.html", {"solicitud": solicitud})
 
