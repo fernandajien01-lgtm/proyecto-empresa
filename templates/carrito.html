@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Carrito de compras{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">Carrito de compras</h2>
+            <span class="fw-semibold">Total: <span class="fs-4 text-primary-custom">${{ carrito.total }}</span></span>
+        </div>
+
+        {% if items %}
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Empresa</th>
+                            <th>Precio</th>
+                            <th>Cantidad</th>
+                            <th>Subtotal</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if item.producto.imagen %}
+                                        <img src="{{ item.producto.imagen.url }}" alt="{{ item.producto.nombre }}" style="width:48px; height:48px; object-fit:cover;" class="rounded">
+                                    {% endif %}
+                                    <div>
+                                        <div class="fw-semibold">{{ item.producto.nombre }}</div>
+                                        <small class="text-muted">{{ item.producto.categoria.nombre }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ item.producto.empresa.nombre }}</td>
+                            <td>${{ item.producto.precio_venta }}</td>
+                            <td>
+                                <form method="post" action="{% url 'carrito_actualizar' item.id %}" class="d-flex align-items-center gap-2">
+                                    {% csrf_token %}
+                                    <input type="number" name="cantidad" value="{{ item.cantidad }}" min="1" max="{{ item.producto.cantidad_stock }}" class="form-control" style="width:80px;">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">Actualizar</button>
+                                </form>
+                                <small class="text-muted">Stock: {{ item.producto.cantidad_stock }}</small>
+                            </td>
+                            <td>${{ item.producto.precio_venta|floatformat:0 }} x {{ item.cantidad }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{% url 'carrito_quitar' item.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-danger">Quitar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="4" class="text-end">Total</th>
+                            <th colspan="2">${{ carrito.total }}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end mt-3">
+                <a href="{% url 'producto_list' %}" class="btn btn-outline-secondary">Seguir comprando</a>
+                <a href="{% url 'carrito_checkout' %}" class="btn btn-primary-custom">Continuar con el pago</a>
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-4">Tu carrito está vacío. Agrega productos desde el catálogo.</div>
+            <a href="{% url 'producto_list' %}" class="btn btn-primary-custom">Ver catálogo</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

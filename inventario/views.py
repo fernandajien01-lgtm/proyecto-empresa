@@ -1,8 +1,10 @@
-from datetime import timedelta
+from decimal import Decimal
+from math import asin, cos, radians, sin, sqrt
 
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -10,6 +12,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
     CategoriaForm,
+    CheckoutForm,
     EmpresaForm,
     MovimientoForm,
     ProductoForm,
@@ -17,23 +20,50 @@ from .forms import (
     RegistroUsuarioForm,
     ResenaForm,
     SolicitudEmpleadoForm,
+    SucursalForm,
     SugerenciaForm,
 )
 from .models import (
+    Carrito,
+    CarritoItem,
     Categoria,
     ChatMensaje,
     CustomUser,
     Empresa,
     Movimiento,
+    Pedido,
+    PedidoItem,
     Producto,
     Proveedor,
     ReaccionProducto,
     ReaccionResena,
     Resena,
     SolicitudEmpleado,
+    Sucursal,
     Sugerencia,
     ensure_default_categorias,
 )
+
+
+def distancia_km(lat1, lon1, lat2, lon2):
+    try:
+        lat1, lon1, lat2, lon2 = float(lat1), float(lon1), float(lat2), float(lon2)
+    except (TypeError, ValueError):
+        return None
+    radio = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return radio * 2 * asin(sqrt(a))
+
+
+def get_or_crear_carrito(user):
+    carrito, _ = Carrito.objects.get_or_create(cliente=user)
+    return carrito
+
+
+def empresa_usuario(empresa):
+    return CustomUser.objects.filter(role="EMPRESA", empresa=empresa).first()
 
 
 @login_required
@@ -165,6 +195,9 @@ def dashboard(request):
     total_unidades_vendidas = sum(item["unidades_vendidas"] or 0 for item in ventas)
     alertas = productos.filter(cantidad_stock__lte=F("stock_minimo"))
     solicitudes = SolicitudEmpleado.objects.filter(empresa=empresa).select_related("empleado").order_by("-fecha_creacion")
+    pedidos = Pedido.objects.filter(empresa=empresa)
+    pedidos_pendientes = pedidos.filter(estado=Pedido.PENDIENTE).count()
+    sucursales = empresa.sucursales.all()
 
     context = {
         "productos": productos,
@@ -172,9 +205,13 @@ def dashboard(request):
         "menos_vendidos": menos_vendidos,
         "total_unidades_vendidas": total_unidades_vendidas,
         "alertas": alertas,
+        "pendientes_recientes": pedidos.filter(estado=Pedido.PENDIENTE).select_related("cliente", "sucursal")[:5],
         "solicitudes": solicitudes,
         "total_productos": productos.count(),
         "stock_bajo": alertas.count(),
+        "total_pedidos": pedidos.count(),
+        "pedidos_pendientes": pedidos_pendientes,
+        "sucursales": sucursales,
     }
     return render(request, "dashboard.html", context)
 
@@ -398,7 +435,14 @@ def chat_list(request):
                         Q(emisor=emp, receptor=cli) | Q(emisor=cli, receptor=emp)
                     ).order_by("-fecha").first()
                     if ultimo:
-                        chats_cliente.append({"empleado": emp, "cliente": cli, "fecha": ultimo.fecha})
+                        chats_cliente.append({
+                            "empleado": emp,
+                            "cliente": cli,
+                            "fecha": ultimo.fecha,
+                            "pedidos": Pedido.objects.filter(
+                                cliente=cli, empresa=request.user.empresa
+                            ).order_by("-fecha_creacion")[:3],
+                        })
         chats_empresa.sort(key=lambda item: item["fecha"], reverse=True)
         chats_cliente.sort(key=lambda item: item["fecha"], reverse=True)
         return render(
@@ -567,8 +611,11 @@ def movimiento_crear(request):
     if request.user.role not in {"EMPRESA", "EMPLEADO"}:
         messages.warning(request, "No tienes permisos para registrar movimientos.")
         return redirect("producto_list")
+    if request.user.empresa is None:
+        messages.warning(request, "Tu cuenta debe estar asociada a una empresa para registrar movimientos.")
+        return redirect("producto_list")
     if request.method == "POST":
-        form = MovimientoForm(request.POST)
+        form = MovimientoForm(request.POST, user=request.user)
         if form.is_valid():
             movimiento = form.save(commit=False)
             movimiento.usuario = request.user
@@ -585,7 +632,7 @@ def movimiento_crear(request):
             messages.success(request, "Movimiento de inventario registrado correctamente.")
             return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
     else:
-        form = MovimientoForm()
+        form = MovimientoForm(user=request.user)
     return render(request, "movimiento_form.html", {"form": form})
 
 
@@ -771,29 +818,427 @@ def resena_editar(request, pk):
 
 
 @login_required
-def realizar_pedido(request, pk):
-    if request.user.role == "EMPLEADO":
-        messages.warning(request, "Los empleados no pueden comprar productos.")
+@require_POST
+def carrito_agregar(request, pk):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes pueden usar el carrito de compras.")
         return redirect("producto_list")
     producto = get_object_or_404(Producto, pk=pk)
-    if request.user.role != "CLIENTE":
-        messages.warning(request, "Solo los clientes pueden comprar productos.")
-        return redirect("producto_list")
+    try:
+        cantidad = int(request.POST.get("cantidad", 1))
+    except (TypeError, ValueError):
+        cantidad = 1
+    if cantidad < 1:
+        cantidad = 1
     if producto.cantidad_stock <= 0:
         messages.error(request, "Este producto no tiene stock disponible.")
         return redirect("producto_list")
-    if producto.cantidad_stock < 1:
-        messages.error(request, "La cantidad solicitada supera el stock disponible.")
+    if cantidad > producto.cantidad_stock:
+        messages.error(
+            request,
+            f"No hay suficiente stock de {producto.nombre} (disponible: {producto.cantidad_stock}).",
+        )
+        return redirect("producto_list")
+    carrito = get_or_crear_carrito(request.user)
+    item, created = CarritoItem.objects.get_or_create(carrito=carrito, producto=producto)
+    if created:
+        item.cantidad = cantidad
+    else:
+        nueva = item.cantidad + cantidad
+        if nueva > producto.cantidad_stock:
+            messages.error(
+                request,
+                f"No hay suficiente stock de {producto.nombre} (disponible: {producto.cantidad_stock}).",
+            )
+            return redirect("producto_list")
+        item.cantidad = nueva
+    item.save()
+    messages.success(request, f"{producto.nombre} agregado al carrito ({item.cantidad} uds).")
+    return redirect("producto_list")
+
+
+@login_required
+def carrito_detalle(request):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes tienen carrito de compras.")
+        return redirect("producto_list")
+    carrito = get_or_crear_carrito(request.user)
+    items = carrito.items.select_related("producto", "producto__empresa", "producto__categoria")
+    return render(request, "carrito.html", {"carrito": carrito, "items": items})
+
+
+@login_required
+@require_POST
+def carrito_actualizar(request, item_id):
+    if request.user.role != "CLIENTE":
+        return redirect("producto_list")
+    item = get_object_or_404(CarritoItem, pk=item_id, carrito__cliente=request.user)
+    try:
+        cantidad = int(request.POST.get("cantidad", 0))
+    except (TypeError, ValueError):
+        cantidad = 0
+    if cantidad <= 0:
+        item.delete()
+        messages.info(request, f"{item.producto.nombre} se eliminó del carrito.")
+    elif cantidad > item.producto.cantidad_stock:
+        messages.error(
+            request,
+            f"No hay suficiente stock de {item.producto.nombre} (disponible: {item.producto.cantidad_stock}).",
+        )
+    else:
+        item.cantidad = cantidad
+        item.save()
+        messages.success(request, "Carrito actualizado.")
+    return redirect("carrito_detalle")
+
+
+@login_required
+@require_POST
+def carrito_quitar(request, item_id):
+    if request.user.role != "CLIENTE":
+        return redirect("producto_list")
+    item = get_object_or_404(CarritoItem, pk=item_id, carrito__cliente=request.user)
+    item.delete()
+    messages.info(request, f"{item.producto.nombre} se eliminó del carrito.")
+    return redirect("carrito_detalle")
+
+
+@login_required
+def carrito_checkout(request):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes pueden realizar compras.")
+        return redirect("producto_list")
+    carrito = get_or_crear_carrito(request.user)
+    items = list(carrito.items.select_related("producto", "producto__empresa"))
+    if not items:
+        messages.info(request, "Tu carrito está vacío.")
+        return redirect("carrito_detalle")
+
+    clat = request.POST.get("clat") or request.GET.get("clat") or ""
+    clng = request.POST.get("clng") or request.GET.get("clng") or ""
+
+    if request.method == "POST":
+        form = CheckoutForm(request.POST)
+        if form.is_valid():
+            por_empresa = {}
+            sin_stock = []
+            for item in items:
+                if item.cantidad > item.producto.cantidad_stock:
+                    sin_stock.append(item.producto.nombre)
+                por_empresa.setdefault(item.producto.empresa_id, []).append(item)
+            if sin_stock:
+                messages.error(request, "Sin stock suficiente para: " + ", ".join(sin_stock))
+                return redirect("carrito_checkout")
+            creados = 0
+            for empresa_id, emp_items in por_empresa.items():
+                empresa = emp_items[0].producto.empresa
+                sucursal = None
+                suc_id = request.POST.get(f"sucursal_{empresa_id}")
+                if suc_id:
+                    sucursal = Sucursal.objects.filter(pk=suc_id, empresa_id=empresa_id).first()
+                total = sum(
+                    (i.producto.precio_venta * i.cantidad for i in emp_items),
+                    Decimal("0"),
+                )
+                pedido = Pedido.objects.create(
+                    cliente=request.user,
+                    empresa=empresa,
+                    sucursal=sucursal,
+                    metodo_pago=form.cleaned_data["metodo_pago"],
+                    direccion_entrega=form.cleaned_data["direccion_entrega"],
+                    total=total,
+                )
+                for i in emp_items:
+                    PedidoItem.objects.create(
+                        pedido=pedido,
+                        producto=i.producto,
+                        cantidad=i.cantidad,
+                        precio=i.producto.precio_venta,
+                    )
+                creados += 1
+            carrito.items.all().delete()
+            messages.success(
+                request,
+                f"Pedido{'s' if creados > 1 else ''} enviado correctamente. "
+                "La empresa lo revisará y un empleado gestionará la compra.",
+            )
+            return redirect("mis_pedidos")
+        else:
+            messages.error(request, "Revisa el método de pago y la dirección de entrega.")
+    else:
+        form = CheckoutForm()
+
+    grupos = []
+    vistos = set()
+    for item in items:
+        if item.producto.empresa_id in vistos:
+            continue
+        vistos.add(item.producto.empresa_id)
+        empresa = item.producto.empresa
+        emp_items = [i for i in items if i.producto.empresa_id == empresa.id]
+        sucursales = list(Sucursal.objects.filter(empresa=empresa))
+        for sucursal in sucursales:
+            dist = None
+            if clat and clng and sucursal.latitud is not None and sucursal.longitud is not None:
+                dist = distancia_km(clat, clng, sucursal.latitud, sucursal.longitud)
+            sucursal.distancia_km = dist
+        sucursales.sort(key=lambda s: (s.distancia_km is None, s.distancia_km or 0))
+        grupos.append(
+            {
+                "empresa": empresa,
+                "items": emp_items,
+                "sucursales": sucursales,
+                "total": sum((i.producto.precio_venta * i.cantidad for i in emp_items), Decimal("0")),
+            }
+        )
+    total_general = sum((i.producto.precio_venta * i.cantidad for i in items), Decimal("0"))
+    return render(
+        request,
+        "checkout.html",
+        {
+            "grupos": grupos,
+            "total_general": total_general,
+            "form": form,
+            "clat": clat,
+            "clng": clng,
+        },
+    )
+
+
+@login_required
+def mis_pedidos(request):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes tienen pedidos.")
+        return redirect("producto_list")
+    pedidos = (
+        Pedido.objects.filter(cliente=request.user)
+        .select_related("empresa", "sucursal", "empleado")
+        .prefetch_related("items__producto")
+    )
+    return render(request, "mis_pedidos.html", {"pedidos": pedidos})
+
+
+def _thread_pedido(pedido, a, b):
+    if a is None or b is None:
+        return ChatMensaje.objects.none()
+    return (
+        ChatMensaje.objects.filter(pedido=pedido)
+        .filter(Q(emisor=a, receptor=b) | Q(emisor=b, receptor=a))
+        .order_by("fecha")
+    )
+
+
+@login_required
+def pedido_detalle(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    es_cliente = request.user.role == "CLIENTE" and pedido.cliente == request.user
+    es_responsable = (
+        request.user.role == "EMPLEADO"
+        and request.user.empresa == pedido.empresa
+        and pedido.empleado == request.user
+    )
+    es_empresa = request.user.role == "EMPRESA" and request.user.empresa == pedido.empresa
+    if not (es_cliente or es_responsable or es_empresa):
+        messages.warning(request, "No tienes acceso a este pedido.")
+        if request.user.role == "CLIENTE":
+            return redirect("mis_pedidos")
         return redirect("producto_list")
 
-    producto.cantidad_stock -= 1
-    producto.save()
-    Movimiento.objects.create(
-        producto=producto,
-        tipo_movimiento=Movimiento.TIPO_SALIDA,
-        cantidad=1,
-        usuario=request.user,
-        nota=f"Pedido realizado por {request.user.username}",
+    if request.method == "POST":
+        contenido = (request.POST.get("mensaje") or "").strip()
+        modo = request.POST.get("modo", "")
+        receptor = None
+        if contenido and modo in {"empleado", "empresa"}:
+            if modo == "empleado":
+                if request.user.role == "CLIENTE":
+                    receptor = pedido.empleado
+                elif es_responsable:
+                    receptor = pedido.cliente
+            else:
+                if request.user.role == "CLIENTE":
+                    receptor = empresa_usuario(pedido.empresa)
+                elif es_empresa:
+                    receptor = pedido.cliente
+            if receptor is not None:
+                ChatMensaje.objects.create(
+                    emisor=request.user,
+                    receptor=receptor,
+                    mensaje=contenido,
+                    pedido=pedido,
+                )
+            else:
+                messages.warning(request, "El contacto indicado no está disponible aún.")
+        return redirect("pedido_detalle", pk=pedido.pk)
+
+    empleado = pedido.empleado
+    empresa_user = empresa_usuario(pedido.empresa)
+    items = pedido.items.select_related("producto")
+    return render(
+        request,
+        "pedido_detalle.html",
+        {
+            "pedido": pedido,
+            "items": items,
+            "empleado": empleado,
+            "empresa_user": empresa_user,
+            "mensajes_empleado": _thread_pedido(pedido, pedido.cliente, empleado),
+            "mensajes_empresa": _thread_pedido(pedido, pedido.cliente, empresa_user),
+            "es_cliente": es_cliente,
+            "es_empleado": es_responsable,
+            "es_empresa": es_empresa,
+            "puede_enviar_empleado": es_cliente or es_responsable,
+            "puede_enviar_empresa": es_cliente or es_empresa,
+        },
     )
-    messages.success(request, f"Pedido realizado correctamente para {producto.nombre}.")
-    return redirect("producto_list")
+
+
+@login_required
+def pedidos_empleado(request):
+    if request.user.role != "EMPLEADO" or request.user.empresa is None:
+        messages.warning(request, "Solo empleados con empresa pueden gestionar pedidos.")
+        return redirect("producto_list")
+    empresa = request.user.empresa
+    pendientes = (
+        Pedido.objects.filter(empresa=empresa, estado=Pedido.PENDIENTE)
+        .select_related("cliente", "sucursal")
+        .prefetch_related("items__producto")
+    )
+    procesados = (
+        Pedido.objects.filter(empresa=empresa, estado=Pedido.PROCESADO)
+        .select_related("cliente", "sucursal")
+        .prefetch_related("items__producto")
+    )
+    return render(
+        request,
+        "pedidos_empleado.html",
+        {"pendientes": pendientes, "procesados": procesados},
+    )
+
+
+@login_required
+@require_POST
+def procesar_pedido(request, pk):
+    if request.user.role != "EMPLEADO" or request.user.empresa is None:
+        messages.warning(request, "Solo empleados con empresa pueden procesar pedidos.")
+        return redirect("producto_list")
+    pedido = get_object_or_404(Pedido, pk=pk, empresa=request.user.empresa)
+    if pedido.estado != Pedido.PENDIENTE:
+        messages.warning(request, "Este pedido ya no está pendiente de procesar.")
+        return redirect("pedidos_empleado")
+    sin_stock = [item for item in pedido.items.all() if item.cantidad > item.producto.cantidad_stock]
+    if sin_stock:
+        nombres = ", ".join(i.producto.nombre for i in sin_stock)
+        messages.error(request, f"No hay suficiente stock para: {nombres}. Repón el inventario antes de procesar.")
+        return redirect("pedido_detalle", pk=pedido.pk)
+    with transaction.atomic():
+        for item in pedido.items.select_related("producto"):
+            producto = item.producto
+            producto.cantidad_stock -= item.cantidad
+            producto.save()
+            Movimiento.objects.create(
+                producto=producto,
+                tipo_movimiento=Movimiento.TIPO_SALIDA,
+                cantidad=item.cantidad,
+                usuario=request.user,
+                nota=f"Pedido #{pedido.pk} procesado por {request.user.username}",
+            )
+        pedido.empleado = request.user
+        pedido.estado = Pedido.PROCESADO
+        pedido.save()
+    messages.success(request, f"Pedido #{pedido.pk} procesado correctamente; el stock fue descontado.")
+    return redirect("pedidos_empleado")
+
+
+@login_required
+def pedidos_empresa(request):
+    if request.user.role != "EMPRESA" or request.user.empresa is None:
+        messages.warning(request, "Solo la empresa puede supervisar pedidos.")
+        return redirect("dashboard")
+    empresa = request.user.empresa
+    pedidos = (
+        Pedido.objects.filter(empresa=empresa)
+        .select_related("cliente", "sucursal", "empleado")
+        .prefetch_related("items__producto")
+    )
+    return render(request, "pedidos_empresa.html", {"pedidos": pedidos})
+
+
+@login_required
+@require_POST
+def cambiar_estado_pedido(request, pk, estado):
+    es_empresa = request.user.role == "EMPRESA" and request.user.empresa is not None
+    es_empleado = request.user.role == "EMPLEADO" and request.user.empresa is not None
+    if not (es_empresa or es_empleado):
+        messages.warning(request, "No tienes permisos para cambiar el estado del pedido.")
+        return redirect("producto_list")
+    if estado not in {Pedido.ENTREGADO, Pedido.CANCELADO}:
+        messages.error(request, "Estado no permitido.")
+        return redirect("producto_list")
+    pedido = get_object_or_404(Pedido, pk=pk, empresa=request.user.empresa)
+    if not pedido.transicion_valida(estado):
+        labels = dict(Pedido.ESTADO_CHOICES)
+        messages.error(
+            request,
+            f"No se puede pasar de {pedido.get_estado_display()} a {labels[estado]}.",
+        )
+        return redirect("pedido_detalle", pk=pedido.pk)
+    pedido.estado = estado
+    pedido.save()
+    messages.success(request, f"Pedido #{pedido.pk} marcado como {pedido.get_estado_display()}.")
+    destino = "pedidos_empresa" if es_empresa else "pedidos_empleado"
+    return redirect(destino)
+
+
+@login_required
+def sucursales_empresa(request):
+    if request.user.role != "EMPRESA" or request.user.empresa is None:
+        messages.warning(request, "Solo la empresa puede gestionar sucursales.")
+        return redirect("dashboard")
+    empresa = request.user.empresa
+    if request.method == "POST":
+        form = SucursalForm(request.POST)
+        if form.is_valid():
+            sucursal = form.save(commit=False)
+            sucursal.empresa = empresa
+            sucursal.save()
+            messages.success(request, "Sucursal agregada correctamente.")
+            return redirect("sucursales_empresa")
+        messages.error(request, "Revisa los datos de la sucursal.")
+    else:
+        form = SucursalForm()
+    sucursales = empresa.sucursales.all()
+    return render(request, "sucursal_lista.html", {"sucursales": sucursales, "form": form})
+
+
+@login_required
+def sucursal_editar(request, pk):
+    if request.user.role != "EMPRESA" or request.user.empresa is None:
+        return redirect("dashboard")
+    sucursal = get_object_or_404(Sucursal, pk=pk, empresa=request.user.empresa)
+    if sucursal.tiene_pedidos:
+        messages.error(request, "Esta sucursal tiene pedidos asignados: no se puede editar su ubicación ni dirección.")
+        return redirect("sucursales_empresa")
+    if request.method == "POST":
+        form = SucursalForm(request.POST, instance=sucursal)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Sucursal actualizada correctamente.")
+            return redirect("sucursales_empresa")
+        messages.error(request, "Revisa los datos de la sucursal.")
+    else:
+        form = SucursalForm(instance=sucursal)
+    return render(request, "sucursal_form.html", {"form": form, "sucursal": sucursal})
+
+
+@login_required
+@require_POST
+def sucursal_eliminar(request, pk):
+    if request.user.role != "EMPRESA" or request.user.empresa is None:
+        return redirect("dashboard")
+    sucursal = get_object_or_404(Sucursal, pk=pk, empresa=request.user.empresa)
+    if sucursal.tiene_pedidos:
+        messages.error(request, "Esta sucursal tiene pedidos asignados: no se puede eliminar.")
+        return redirect("sucursales_empresa")
+    sucursal.delete()
+    messages.success(request, "Sucursal eliminada correctamente.")
+    return redirect("sucursales_empresa")

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}Mis pedidos{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="mb-1">Mis pedidos</h2>
+        <p class="text-muted">Consulta el estado de tus compras y contacta con la empresa si necesitas ayuda.</p>
+
+        {% if pedidos %}
+            <div class="d-flex flex-column gap-3">
+                {% for pedido in pedidos %}
+                    <div class="border rounded p-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <strong>Pedido #{{ pedido.id }}</strong> · {{ pedido.empresa.nombre }}
+                                <div class="small text-muted">{{ pedido.fecha_creacion|date:"d/m/Y H:i" }}</div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge {% if pedido.estado == 'PENDIENTE' %}bg-warning{% elif pedido.estado == 'PROCESADO' %}bg-primary{% elif pedido.estado == 'ENTREGADO' %}bg-success{% else %}bg-danger{% endif %} rounded-pill">{{ pedido.get_estado_display }}</span>
+                                <a href="{% url 'pedido_detalle' pedido.id %}" class="btn btn-sm btn-primary-custom">Ver y contactar</a>
+                            </div>
+                        </div>
+                        <div class="small mt-2">
+                            {% for item in pedido.items.all %}
+                                <div>{{ item.cantidad }}x {{ item.producto.nombre }} <span class="text-muted">(${{ item.precio }})</span></div>
+                            {% endfor %}
+                        </div>
+                        <div class="d-flex justify-content-between small text-muted mt-2">
+                            <span>Pago: {{ pedido.get_metodo_pago_display }}{% if pedido.sucursal %} · Sucursal: {{ pedido.sucursal.nombre }}{% endif %}</span>
+                            <strong>Total: ${{ pedido.total }}</strong>
+                        </div>
+                        {% if pedido.empleado %}
+                            <div class="small mt-1">Atendido por: <strong>{{ pedido.empleado.first_name }} {{ pedido.empleado.last_name }}</strong></div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-4">Aún no has realizado pedidos.</div>
+            <a href="{% url 'producto_list' %}" class="btn btn-primary-custom">Ver catálogo</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

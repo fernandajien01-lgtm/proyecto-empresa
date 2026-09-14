@@ -7,10 +7,12 @@ from .models import (
     CustomUser,
     Empresa,
     Movimiento,
+    Pedido,
     Producto,
     Proveedor,
     Resena,
     SolicitudEmpleado,
+    Sucursal,
     Sugerencia,
 )
 
@@ -423,6 +425,12 @@ class MovimientoForm(SpellcheckModelForm):
             "nota": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        if user is not None and user.empresa is not None:
+            self.fields["producto"].queryset = Producto.objects.filter(empresa=user.empresa)
+
     def clean(self):
         cleaned_data = super().clean()
         producto = cleaned_data.get("producto")
@@ -503,3 +511,33 @@ class ProveedorForm(SpellcheckModelForm):
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "direccion": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+
+class SucursalForm(SpellcheckModelForm):
+    class Meta:
+        model = Sucursal
+        fields = ("nombre", "direccion", "telefono", "latitud", "longitud")
+        widgets = {
+            "nombre": forms.TextInput(attrs={"class": "form-control"}),
+            "direccion": forms.TextInput(attrs={"class": "form-control"}),
+            "telefono": forms.TextInput(attrs={"class": "form-control"}),
+            "latitud": forms.NumberInput(attrs={"class": "form-control", "step": "0.000001"}),
+            "longitud": forms.NumberInput(attrs={"class": "form-control", "step": "0.000001"}),
+        }
+        help_texts = {
+            "latitud": "Coordenadas opcionales para mostrar la sucursal y calcular cercanía.",
+            "longitud": "Coordenadas opcionales para mostrar la sucursal y calcular cercanía.",
+        }
+
+
+class CheckoutForm(forms.Form):
+    metodo_pago = forms.ChoiceField(
+        choices=Pedido.METODO_PAGO_CHOICES,
+        label="Método de pago",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    direccion_entrega = forms.CharField(
+        max_length=255,
+        label="Dirección de entrega",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Indica dónde recibirás el pedido..."}),
+    )

@@ -173,15 +173,30 @@ body {
                             <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
                         {% elif user.role == 'EMPLEADO' %}
                             {% if user.empresa %}
+                                <li class="nav-item"><a class="nav-link" href="{% url 'pedidos_empleado' %}">Pedidos</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{% url 'movimiento_crear' %}">Movimientos</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
                             {% endif %}
                             <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
                             <li class="nav-item"><a class="nav-link" href="{% url 'mis_solicitudes' %}">Mis solicitudes</a></li>
+                        {% elif user.role == 'CLIENTE' %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'mis_pedidos' %}">Mis pedidos</a>
+                            </li>
                         {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav ms-auto align-items-center">
+                    {% if user.is_authenticated and user.role == 'CLIENTE' %}
+                        <li class="nav-item me-2">
+                            <a class="nav-link position-relative" href="{% url 'carrito_detalle' %}" title="Carrito de compras">
+                                🛒
+                                {% if cart_items %}
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ cart_items }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item me-2">
                         <button class="theme-toggle" type="button" id="themeToggle" aria-label="Cambiar a modo oscuro" title="Cambiar tema">
                             <span id="themeIcon" aria-hidden="true">☀</span>

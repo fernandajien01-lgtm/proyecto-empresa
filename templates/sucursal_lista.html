@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}Sucursales{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body p-4">
+        <h2 class="mb-1">Sucursales de {{ user.empresa.nombre }}</h2>
+        <p class="text-muted">Las sucursales se muestran a los clientes en la compra para elegir el lugar más cercano de entrega.</p>
+
+        {% if sucursales %}
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Dirección</th>
+                            <th>Teléfono</th>
+                            <th>Coordenadas</th>
+                            <th>Pedidos asignados</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sucursal in sucursales %}
+                        <tr>
+                            <td class="fw-semibold">{{ sucursal.nombre }}</td>
+                            <td>{{ sucursal.direccion }}</td>
+                            <td>{{ sucursal.telefono|default:'—' }}</td>
+                            <td>
+                                {% if sucursal.latitud and sucursal.longitud %}
+                                    {{ sucursal.latitud }}, {{ sucursal.longitud }}
+                                {% else %}
+                                    <span class="text-muted">Sin coordenadas</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if sucursal.tiene_pedidos %}
+                                    <span class="badge badge-warning rounded-pill">Con pedidos · bloqueada para edición</span>
+                                {% else %}
+                                    <span class="badge badge-ok rounded-pill">Sin pedidos</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex gap-2 justify-content-end">
+                                    {% if not sucursal.tiene_pedidos %}
+                                        <a href="{% url 'sucursal_editar' sucursal.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                                        <form method="post" action="{% url 'sucursal_eliminar' sucursal.id %}" onsubmit="return confirm('¿Borrar esta sucursal? Esta acción no se puede deshacer.');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                                        </form>
+                                    {% else %}
+                                        <span class="text-muted small">Bloqueada</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">Aún no tienes sucursales registradas.</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h3 class="mb-3">Agregar sucursal</h3>
+        <form method="post" class="row g-3">
+            {% csrf_token %}
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Nombre</label>
+                {{ form.nombre }}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Teléfono</label>
+                {{ form.telefono }}
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-semibold">Dirección</label>
+                {{ form.direccion }}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Latitud</label>
+                {{ form.latitud }}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Longitud</label>
+                {{ form.longitud }}
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary-custom">Agregar sucursal</button>
+                <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">Volver</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

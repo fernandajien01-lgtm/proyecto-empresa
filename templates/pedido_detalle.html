@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block title %}Pedido #{{ pedido.id }}{% endblock %}
+
+{% block content %}
+<style>
+    .chat-messages {
+        max-height: 320px;
+        overflow-y: auto;
+        background-color: #40B5AD;
+        border-radius: 0.5rem;
+    }
+    html[data-theme="dark"] .chat-messages {
+        background-color: #1e293b;
+    }
+    .chat-form-input {
+        background-color: #ffffff;
+    }
+    html[data-theme="dark"] .chat-form-input {
+        background-color: #0f172a;
+        color: #e2e8f0;
+    }
+</style>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="mb-0">Pedido #{{ pedido.id }} · {{ pedido.empresa.nombre }}</h2>
+            <div class="d-flex gap-2">
+                {% if es_empresa %}
+                    <a href="{% url 'pedidos_empresa' %}" class="btn btn-outline-secondary">Volver</a>
+                {% elif es_empleado %}
+                    <a href="{% url 'pedidos_empleado' %}" class="btn btn-outline-secondary">Volver</a>
+                {% else %}
+                    <a href="{% url 'mis_pedidos' %}" class="btn btn-outline-secondary">Volver</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-8">
+                <div class="border rounded p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Estado</strong>
+                        <span class="badge {% if pedido.estado == 'PENDIENTE' %}bg-warning{% elif pedido.estado == 'PROCESADO' %}bg-primary{% elif pedido.estado == 'ENTREGADO' %}bg-success{% else %}bg-danger{% endif %} rounded-pill">{{ pedido.get_estado_display }}</span>
+                    </div>
+                    <div class="small">
+                        <div class="mb-1">Cliente: <strong>{{ pedido.cliente.first_name }} {{ pedido.cliente.last_name }} (@{{ pedido.cliente.username }})</strong></div>
+                        <div class="mb-1">Método de pago: <strong>{{ pedido.get_metodo_pago_display }}</strong></div>
+                        <div class="mb-1">Dirección de entrega: <strong>{{ pedido.direccion_entrega|default:'No indicada' }}</strong></div>
+                        <div class="mb-1">Sucursal: <strong>{{ pedido.sucursal.nombre|default:'Sin sucursal' }}</strong>{% if pedido.sucursal %} <span class="text-muted">({{ pedido.sucursal.direccion }})</span>{% endif %}</div>
+                        <div class="mb-1">Fecha: {{ pedido.fecha_creacion|date:"d/m/Y H:i" }}</div>
+                        {% if pedido.empleado %}
+                            <div class="mb-1">Empleado responsable: <strong>{{ pedido.empleado.first_name }} {{ pedido.empleado.last_name }}</strong></div>
+                        {% endif %}
+                        <div class="mt-2">Total: <strong class="fs-5">${{ pedido.total }}</strong></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 h-100">
+                    <strong class="d-block mb-2">Productos</strong>
+                    {% for item in items %}
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>{{ item.cantidad }}x {{ item.producto.nombre }}</span>
+                            <span class="text-muted">${{ item.precio }}</span>
+                        </div>
+                    {% empty %}
+                        <div class="text-muted small">Sin items.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {% if es_cliente and pedido.estado == 'PENDIENTE' %}
+            <div class="alert alert-info py-2">
+                Tu pedido está pendiente. Cuando un empleado de {{ pedido.empresa.nombre }} lo procese, podrás hablar con él para hacer seguimiento.
+            </div>
+        {% endif %}
+
+        <h4 class="mb-3">Contactar</h4>
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-empleado" type="button">Empleado que te atiende</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-empresa" type="button">Empresa (escalar)</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="tab-empleado">
+                {% if empleado %}
+                    <div class="small text-muted mb-2">Conversando con <strong>{{ empleado.first_name }} {{ empleado.last_name }}</strong> ({{ empleado.username }})</div>
+                    <div class="p-3 mb-3 chat-messages" style="max-height:320px; overflow-y:auto;">
+                        {% for mensaje in mensajes_empleado %}
+                            <div class="mb-2 {% if mensaje.emisor == user %}text-end{% endif %}">
+                                <div class="d-inline-block rounded px-3 py-2 text-white" style="max-width:80%; background-color:{% if mensaje.emisor == user %}#198754{% else %}#6c757d{% endif %};">
+                                    <div class="small fw-semibold mb-1" style="color:#7dd3fc;">{{ mensaje.emisor.username }}</div>
+                                    <div>{{ mensaje.mensaje }}</div>
+                                    <div class="small mt-1 text-muted">{{ mensaje.fecha|date:"d/m/Y H:i" }}</div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="text-light text-center">Sin mensajes todavía.</div>
+                        {% endfor %}
+                    </div>
+                    {% if puede_enviar_empleado %}
+                        <form method="post" class="input-group">
+                            {% csrf_token %}
+                            <input type="hidden" name="modo" value="empleado">
+                            <input type="text" name="mensaje" class="form-control chat-form-input" placeholder="Escribe tu mensaje..." spellcheck="true" required>
+                            <button type="submit" class="btn btn-primary-custom">Enviar</button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-info py-2 mb-0">Solo el cliente y el empleado responsable pueden escribir aquí.</div>
+                    {% endif %}
+                {% else %}
+                    <div class="alert alert-info py-2 mb-0">Aún no se ha asignado un empleado a este pedido. Vuelve cuando esté procesado.</div>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="tab-empresa">
+                {% if empresa_user %}
+                    <div class="small text-muted mb-2">Escalando con <strong>{{ empresa_user.empresa.nombre }}</strong> ({{ empresa_user.username }})</div>
+                    <div class="p-3 mb-3 chat-messages" style="max-height:320px; overflow-y:auto;">
+                        {% for mensaje in mensajes_empresa %}
+                            <div class="mb-2 {% if mensaje.emisor == user %}text-end{% endif %}">
+                                <div class="d-inline-block rounded px-3 py-2 text-white" style="max-width:80%; background-color:{% if mensaje.emisor == user %}#198754{% else %}#6c757d{% endif %};">
+                                    <div class="small fw-semibold mb-1" style="color:#7dd3fc;">{{ mensaje.emisor.username }}</div>
+                                    <div>{{ mensaje.mensaje }}</div>
+                                    <div class="small mt-1 text-muted">{{ mensaje.fecha|date:"d/m/Y H:i" }}</div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="text-light text-center">Sin mensajes todavía.</div>
+                        {% endfor %}
+                    </div>
+                    {% if puede_enviar_empresa %}
+                        <form method="post" class="input-group">
+                            {% csrf_token %}
+                            <input type="hidden" name="modo" value="empresa">
+                            <input type="text" name="mensaje" class="form-control chat-form-input" placeholder="Escribe tu mensaje..." spellcheck="true" required>
+                            <button type="submit" class="btn btn-primary-custom">Enviar</button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-info py-2 mb-0">Solo el cliente y la empresa pueden escribir aquí.</div>
+                    {% endif %}
+                {% else %}
+                    <div class="alert alert-info py-2 mb-0">La empresa no tiene una cuenta de contacto configurada.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

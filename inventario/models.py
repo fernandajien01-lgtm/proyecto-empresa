@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -219,11 +221,124 @@ class ReaccionProducto(models.Model):
     def __str__(self):
         return f"{self.usuario.username} likes {self.producto.nombre}"
 
+class Sucursal(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="sucursales")
+    nombre = models.CharField(max_length=150)
+    direccion = models.CharField(max_length=255)
+    telefono = models.CharField(max_length=20, blank=True)
+    latitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.nombre} ({self.empresa.nombre})"
+
+    @property
+    def tiene_pedidos(self):
+        return self.pedidos.exists()
+
+
+class Carrito(models.Model):
+    cliente = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="carrito")
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Carrito de {self.cliente.username}"
+
+    @property
+    def total(self):
+        total = Decimal("0")
+        for item in self.items.select_related("producto", "producto__empresa"):
+            total += item.producto.precio_venta * item.cantidad
+        return total
+
+
+class CarritoItem(models.Model):
+    carrito = models.ForeignKey(Carrito, on_delete=models.CASCADE, related_name="items")
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="carrito_items")
+    cantidad = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        unique_together = ("carrito", "producto")
+
+    def __str__(self):
+        return f"{self.cantidad} x {self.producto.nombre}"
+
+
+class Pedido(models.Model):
+    PENDIENTE = "PENDIENTE"
+    PROCESADO = "PROCESADO"
+    ENTREGADO = "ENTREGADO"
+    CANCELADO = "CANCELADO"
+    ESTADO_CHOICES = (
+        (PENDIENTE, "Pendiente"),
+        (PROCESADO, "Procesado"),
+        (ENTREGADO, "Entregado"),
+        (CANCELADO, "Cancelado"),
+    )
+
+    EFECTIVO = "EFECTIVO"
+    TRANSFERENCIA = "TRANSFERENCIA"
+    TARJETA = "TARJETA"
+    PAGO_MOVIL = "PAGO_MOVIL"
+    METODO_PAGO_CHOICES = (
+        (EFECTIVO, "Efectivo al entregar"),
+        (TRANSFERENCIA, "Transferencia bancaria"),
+        (TARJETA, "Tarjeta al entregar"),
+        (PAGO_MOVIL, "Pago móvil / Zelle"),
+    )
+
+    cliente = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="pedidos")
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="pedidos")
+    sucursal = models.ForeignKey(
+        Sucursal, on_delete=models.SET_NULL, null=True, blank=True, related_name="pedidos"
+    )
+    empleado = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pedidos_procesados",
+    )
+    metodo_pago = models.CharField(max_length=20, choices=METODO_PAGO_CHOICES)
+    direccion_entrega = models.CharField(max_length=255, blank=True)
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=PENDIENTE)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-fecha_creacion"]
+
+    def __str__(self):
+        return f"Pedido #{self.pk} de {self.cliente.username} → {self.empresa.nombre} ({self.estado})"
+
+    def transicion_valida(self, nuevo_estado):
+        permitidas = {
+            self.PENDIENTE: {self.PROCESADO, self.CANCELADO},
+            self.PROCESADO: {self.ENTREGADO, self.CANCELADO},
+            self.ENTREGADO: set(),
+            self.CANCELADO: set(),
+        }
+        return nuevo_estado in permitidas.get(self.estado, set())
+
+
+class PedidoItem(models.Model):
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name="items")
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="pedido_items")
+    cantidad = models.PositiveIntegerField()
+    precio = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.cantidad} x {self.producto.nombre} (pedido {self.pedido_id})"
+
+
 class ChatMensaje(models.Model):
     emisor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="mensajes_enviados")
     receptor = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="mensajes_recibidos")
     mensaje = models.TextField()
     fecha = models.DateTimeField(auto_now_add=True)
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, null=True, blank=True, related_name="mensajes")
 
     class Meta:
         ordering = ["fecha"]

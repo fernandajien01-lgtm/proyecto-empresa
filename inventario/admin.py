@@ -2,16 +2,21 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .models import (
+    Carrito,
+    CarritoItem,
     Categoria,
     CustomUser,
     Empresa,
     Movimiento,
+    Pedido,
+    PedidoItem,
     Producto,
     Proveedor,
     ReaccionProducto,
     ReaccionResena,
     Resena,
     SolicitudEmpleado,
+    Sucursal,
     Sugerencia,
 )
 
@@ -78,3 +83,29 @@ class ReaccionResenaAdmin(admin.ModelAdmin):
 @admin.register(ReaccionProducto)
 class ReaccionProductoAdmin(admin.ModelAdmin):
     list_display = ("producto", "usuario", "tipo")
+
+
+@admin.register(Sucursal)
+class SucursalAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "empresa", "direccion", "telefono")
+
+
+@admin.register(Carrito)
+class CarritoAdmin(admin.ModelAdmin):
+    list_display = ("cliente", "fecha_creacion")
+
+
+@admin.register(CarritoItem)
+class CarritoItemAdmin(admin.ModelAdmin):
+    list_display = ("carrito", "producto", "cantidad")
+
+
+@admin.register(Pedido)
+class PedidoAdmin(admin.ModelAdmin):
+    list_display = ("id", "cliente", "empresa", "estado", "metodo_pago", "total", "fecha_creacion")
+    list_filter = ("estado", "metodo_pago", "empresa")
+
+
+@admin.register(PedidoItem)
+class PedidoItemAdmin(admin.ModelAdmin):
+    list_display = ("pedido", "producto", "cantidad", "precio")

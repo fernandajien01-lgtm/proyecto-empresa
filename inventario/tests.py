@@ -8,8 +8,22 @@ from django.contrib.auth.hashers import check_password
 from django.utils import timezone
 import re
 
-from .forms import EmpresaForm, RegistroUsuarioForm, ResenaForm
-from .models import Categoria, Empresa, Producto, Proveedor, Resena, SolicitudEmpleado, Movimiento
+from .forms import EmpresaForm, RegistroUsuarioForm, ResenaForm, SucursalForm
+from .models import (
+    Categoria,
+    Carrito,
+    CarritoItem,
+    ChatMensaje,
+    Empresa,
+    Pedido,
+    PedidoItem,
+    Producto,
+    Proveedor,
+    Resena,
+    SolicitudEmpleado,
+    Movimiento,
+    Sucursal,
+)
 
 User = get_user_model()
 
@@ -428,3 +442,195 @@ class PasswordResetTests(TestCase):
         password_form.save()
         user.refresh_from_db()
         self.assertTrue(check_password("NewSecurePass123!", user.password))
+
+
+class CarritoCompraTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(nombre="Tienda Test", descripcion="Desc", telefono="000", direccion="Calle 1")
+        self.empresa_user = User.objects.create_user(username="empresaowner", password="p", role="EMPRESA", empresa=self.empresa)
+        self.cliente = User.objects.create_user(username="comprador", password="p", role="CLIENTE")
+        self.empleado = User.objects.create_user(username="empleado1", password="p", role="EMPLEADO", empresa=self.empresa)
+        self.categoria = Categoria.objects.create(nombre="Varios")
+        self.proveedor = Proveedor.objects.create(nombre_negocio="Prov", telefono="1", email="e@e.com", direccion="D")
+        self.producto = Producto.objects.create(nombre="Producto A", descripcion="x", codigo_sku="SKU-A", categoria=self.categoria, proveedor=self.proveedor, empresa=self.empresa, precio_compra=50, precio_venta=100, cantidad_stock=10, stock_minimo=1)
+        self.sucursal = Sucursal.objects.create(empresa=self.empresa, nombre="Suc Central", direccion="Av 1", telefono="111", latitud="10.5", longitud="-66.9")
+
+    def _login_cliente(self):
+        self.assertTrue(self.client.login(username="comprador", password="p"))
+
+    def test_agregar_y_quitar_carrito(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
+        item = CarritoItem.objects.get(carrito__cliente=self.cliente, producto=self.producto)
+        self.assertEqual(item.cantidad, 2)
+        self.client.post(reverse("carrito_quitar", args=[item.pk]))
+        self.assertFalse(CarritoItem.objects.filter(pk=item.pk).exists())
+
+    def test_actualizar_cantidad_carrito(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        item = CarritoItem.objects.get(carrito__cliente=self.cliente)
+        self.client.post(reverse("carrito_actualizar", args=[item.pk]), {"cantidad": 5})
+        item.refresh_from_db()
+        self.assertEqual(item.cantidad, 5)
+
+    def test_checkout_crea_pedido_y_vacia_carrito(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
+        response = self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 123",
+            "sucursal_%d" % self.empresa.pk: self.sucursal.pk,
+        })
+        self.assertEqual(response.status_code, 302)
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        self.assertEqual(pedido.estado, Pedido.PENDIENTE)
+        self.assertEqual(pedido.sucursal, self.sucursal)
+        self.assertEqual(pedido.total, 200)
+        self.assertEqual(pedido.items.count(), 1)
+        self.assertEqual(pedido.items.first().cantidad, 2)
+        self.assertFalse(CarritoItem.objects.filter(carrito__cliente=self.cliente).exists())
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.cantidad_stock, 10)
+
+    def test_checkout_bloquea_sin_stock(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
+        self.producto.cantidad_stock = 1
+        self.producto.save()
+        response = self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 123",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Pedido.objects.filter(cliente=self.cliente).exists())
+
+    def test_empleado_procesa_pedido(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 123",
+        })
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        self.assertTrue(self.client.login(username="empleado1", password="p"))
+        response = self.client.post(reverse("procesar_pedido", args=[pedido.pk]))
+        self.assertEqual(response.status_code, 302)
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.PROCESADO)
+        self.assertEqual(pedido.empleado, self.empleado)
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.cantidad_stock, 8)
+        movimiento = Movimiento.objects.filter(producto=self.producto, tipo_movimiento=Movimiento.TIPO_SALIDA).first()
+        self.assertIsNotNone(movimiento)
+        self.assertEqual(movimiento.cantidad, 2)
+
+    def test_empleado_otra_empresa_no_procesa(self):
+        from django.http import Http404
+        from django.test import RequestFactory
+        from .views import procesar_pedido
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 1",
+        })
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        otra = Empresa.objects.create(nombre="Otra", telefono="2", direccion="D")
+        User.objects.create_user(username="otro_emp", password="p", role="EMPLEADO", empresa=otra)
+        rf = RequestFactory()
+        request = rf.post("/procesar/%d/" % pedido.pk)
+        request.user = User.objects.get(username="otro_emp")
+        with self.assertRaises(Http404):
+            procesar_pedido(request, pk=pedido.pk)
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.PENDIENTE)
+
+    def test_empresa_marca_entregado_y_transicion_invalida(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "TRANSFERENCIA",
+            "direccion_entrega": "Casa 1",
+        })
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        self.assertTrue(self.client.login(username="empresaowner", password="p"))
+        self.client.post(reverse("cambiar_estado_pedido", args=[pedido.pk, "ENTREGADO"]))
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.PENDIENTE)
+        self.client.post(reverse("cambiar_estado_pedido", args=[pedido.pk, "CANCELADO"]))
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.CANCELADO)
+
+    def test_sucursal_con_pedidos_bloqueada(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 1",
+            "sucursal_%d" % self.empresa.pk: self.sucursal.pk,
+        })
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        self.assertEqual(pedido.sucursal, self.sucursal)
+        self.assertTrue(self.sucursal.tiene_pedidos)
+        self.assertTrue(self.client.login(username="empresaowner", password="p"))
+        self.client.post(reverse("sucursal_editar", args=[self.sucursal.pk]), {
+            "nombre": "Nuevo nombre",
+            "direccion": "Calle nueva",
+            "telefono": "999",
+        })
+        self.sucursal.refresh_from_db()
+        self.assertEqual(self.sucursal.nombre, "Suc Central")
+        self.client.post(reverse("sucursal_eliminar", args=[self.sucursal.pk]))
+        self.assertTrue(Sucursal.objects.filter(pk=self.sucursal.pk).exists())
+
+    def test_sucursal_sin_pedidos_eliminable(self):
+        self.assertTrue(self.client.login(username="empresaowner", password="p"))
+        self.client.post(reverse("sucursal_eliminar", args=[self.sucursal.pk]))
+        self.assertFalse(Sucursal.objects.filter(pk=self.sucursal.pk).exists())
+
+    def test_chat_por_pedido_cliente_empleado(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 1",
+        })
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        self.assertTrue(self.client.login(username="empleado1", password="p"))
+        self.client.post(reverse("procesar_pedido", args=[pedido.pk]))
+        self.assertTrue(self.client.login(username="comprador", password="p"))
+        response = self.client.post(reverse("pedido_detalle", args=[pedido.pk]), {
+            "modo": "empleado",
+            "mensaje": "Hola empleado, como va mi pedido?",
+        })
+        self.assertEqual(response.status_code, 302)
+        msg = ChatMensaje.objects.get(pedido=pedido)
+        self.assertEqual(msg.emisor, self.cliente)
+        self.assertEqual(msg.receptor, self.empleado)
+        self.assertEqual(msg.mensaje, "Hola empleado, como va mi pedido?")
+
+    def test_pedido_detalle_permisos(self):
+        from django.contrib.messages import get_messages
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+        from .views import pedido_detalle
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 1",
+        })
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        otro = User.objects.create_user(username="otro_cliente", password="p", role="CLIENTE")
+        rf = RequestFactory()
+        request = rf.get("/pedido/%d/" % pedido.pk)
+        request.user = otro
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        response = pedido_detalle(request, pk=pedido.pk)
+        self.assertEqual(response.status_code, 302)
+        request = rf.get("/pedido/%d/" % pedido.pk)
+        request.user = self.cliente
+        response = pedido_detalle(request, pk=pedido.pk)
+        self.assertEqual(response.status_code, 200)

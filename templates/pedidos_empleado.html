@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Pedidos por procesar{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="mb-1">Pedidos de {{ user.empresa.nombre }}</h2>
+        <p class="text-muted">Aquí validas el stock y procesas las compras que los clientes enviaron a tu empresa.</p>
+
+        <h4 class="mt-4 mb-2">Pendientes de procesar</h4>
+        {% if pendientes %}
+            <div class="d-flex flex-column gap-3">
+                {% for pedido in pendientes %}
+                    <div class="border rounded p-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <strong>Pedido #{{ pedido.id }}</strong> · {{ pedido.cliente.first_name }} {{ pedido.cliente.last_name }} (@{{ pedido.cliente.username }})
+                                <div class="small text-muted">{{ pedido.fecha_creacion|date:"d/m/Y H:i" }} · {{ pedido.get_metodo_pago_display }}</div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <a href="{% url 'pedido_detalle' pedido.id %}" class="btn btn-sm btn-outline-primary">Ver</a>
+                                <form method="post" action="{% url 'procesar_pedido' pedido.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success">Procesar compra</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="small mt-2">
+                            {% for item in pedido.items.all %}
+                                <div>{{ item.cantidad }}x {{ item.producto.nombre }} · Stock disponible: {{ item.producto.cantidad_stock }}</div>
+                            {% endfor %}
+                        </div>
+                        {% if pedido.sucursal %}
+                            <div class="small text-muted mt-1">Sucursal: {{ pedido.sucursal.nombre }} · {{ pedido.sucursal.direccion }}</div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">No hay pedidos pendientes. Los pedidos enviados por los clientes aparecerán aquí.</div>
+        {% endif %}
+
+        <h4 class="mt-4 mb-2">Procesados (en seguimiento)</h4>
+        {% if procesados %}
+            <div class="d-flex flex-column gap-3">
+                {% for pedido in procesados %}
+                    <div class="border rounded p-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div>
+                                <strong>Pedido #{{ pedido.id }}</strong> · {{ pedido.cliente.first_name }} {{ pedido.cliente.last_name }} (@{{ pedido.cliente.username }})
+                                <div class="small text-muted">{{ pedido.fecha_creacion|date:"d/m/Y H:i" }} · Total: ${{ pedido.total }}</div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <a href="{% url 'pedido_detalle' pedido.id %}" class="btn btn-sm btn-outline-primary">Ver / Responder</a>
+                                <form method="post" action="{% url 'cambiar_estado_pedido' pedido.id 'ENTREGADO' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success">Marcar entregado</button>
+                                </form>
+                                <form method="post" action="{% url 'cambiar_estado_pedido' pedido.id 'CANCELADO' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">Aún no has procesado pedidos.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

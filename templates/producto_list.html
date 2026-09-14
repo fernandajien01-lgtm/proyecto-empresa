@@ -162,7 +162,13 @@
                     {% endif %}
 
                     {% if user.is_authenticated and user.role == 'CLIENTE' %}
-                        <a href="{% url 'realizar_pedido' producto.pk %}" class="btn btn-primary-custom btn-sm w-100 mt-2">Comprar</a>
+                        <form method="post" action="{% url 'carrito_agregar' producto.pk %}" class="mt-2">
+                            {% csrf_token %}
+                            <div class="input-group">
+                                <input type="number" name="cantidad" value="1" min="1" max="{{ producto.cantidad_stock }}" class="form-control" style="max-width:90px;">
+                                <button type="submit" class="btn btn-primary-custom btn-sm" {% if producto.cantidad_stock <= 0 %}disabled{% endif %}>Agregar al carrito</button>
+                            </div>
+                        </form>
                     {% endif %}
 
                     {% if user.is_authenticated and user.role != 'EMPRESA' %}

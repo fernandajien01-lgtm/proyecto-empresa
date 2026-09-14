@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Supervisión de pedidos{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="mb-1">Supervisión de pedidos · {{ user.empresa.nombre }}</h2>
+        <p class="text-muted">Vigila todo el trámite: quién presenta el pedido, quién lo procesa y su estado.</p>
+
+        {% if pedidos %}
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Pedido</th>
+                            <th>Cliente</th>
+                            <th>Empleado responsable</th>
+                            <th>Pago</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pedido in pedidos %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'pedido_detalle' pedido.id %}">#{{ pedido.id }}</a>
+                                <div class="small text-muted">{{ pedido.fecha_creacion|date:"d/m/Y H:i" }}</div>
+                            </td>
+                            <td>
+                                {{ pedido.cliente.first_name }} {{ pedido.cliente.last_name }}
+                                <div class="small text-muted">@{{ pedido.cliente.username }}</div>
+                            </td>
+                            <td>
+                                {% if pedido.empleado %}
+                                    {{ pedido.empleado.first_name }} {{ pedido.empleado.last_name }}
+                                {% else %}
+                                    <span class="text-muted">Sin asignar</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ pedido.get_metodo_pago_display }}</td>
+                            <td>${{ pedido.total }}</td>
+                            <td>
+                                <span class="badge {% if pedido.estado == 'PENDIENTE' %}bg-warning{% elif pedido.estado == 'PROCESADO' %}bg-primary{% elif pedido.estado == 'ENTREGADO' %}bg-success{% else %}bg-danger{% endif %} rounded-pill">{{ pedido.get_estado_display }}</span>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <a href="{% url 'pedido_detalle' pedido.id %}" class="btn btn-sm btn-outline-primary">Ver / Responder</a>
+                                    {% if pedido.estado == 'PROCESADO' %}
+                                        <form method="post" action="{% url 'cambiar_estado_pedido' pedido.id 'ENTREGADO' %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-success">Entregado</button>
+                                        </form>
+                                    {% endif %}
+                                    {% if pedido.estado == 'PENDIENTE' or pedido.estado == 'PROCESADO' %}
+                                        <form method="post" action="{% url 'cambiar_estado_pedido' pedido.id 'CANCELADO' %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">Aún no hay pedidos para tu empresa.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

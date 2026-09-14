@@ -79,6 +79,12 @@
                                 <span>
                                     <strong>{{ item.empleado.first_name }} {{ item.empleado.last_name }}</strong> (Empleado) ↔ <strong>{{ item.cliente.first_name }} {{ item.cliente.last_name }}</strong> (Cliente)
                                     <div class="small text-muted">C.I. {{ item.empleado.cedula|default:'—' }} · @{{ item.cliente.username }}</div>
+                                    {% for pedido in item.pedidos %}
+                                        <div class="small">
+                                            Pedido <a href="{% url 'pedido_detalle' pedido.id %}">#{{ pedido.id }}</a>
+                                            <span class="badge {% if pedido.estado == 'PENDIENTE' %}bg-warning{% elif pedido.estado == 'PROCESADO' %}bg-primary{% elif pedido.estado == 'ENTREGADO' %}bg-success{% else %}bg-danger{% endif %} rounded-pill">{{ pedido.get_estado_display }}</span>
+                                        </div>
+                                    {% endfor %}
                                 </span>
                                 <span class="badge bg-primary rounded-pill">Ver</span>
                             </div>

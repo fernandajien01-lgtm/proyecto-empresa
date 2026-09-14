@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}Finalizar compra{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h2 class="mb-1">Finalizar compra</h2>
+        <p class="text-muted">Elige tu ubicación, el método de pago y envía tu compra. Un empleado de cada empresa gestionará el pedido.</p>
+
+        <div class="mb-4">
+            <button type="button" id="btn-ubicacion" class="btn btn-outline-primary">📍 Usar mi ubicación</button>
+            <small class="text-muted ms-2">o escribe tu dirección manualmente.</small>
+            {% if clat and clng %}
+                <span class="badge badge-ok rounded-pill ms-2">Ubicación detectada: sucursales ordenadas por cercanía</span>
+            {% endif %}
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="clat" value="{{ clat }}">
+            <input type="hidden" name="clng" value="{{ clng }}">
+
+            {% if form.errors %}
+                <div class="alert alert-danger py-2">Revisa el método de pago y la dirección de entrega.</div>
+            {% endif %}
+
+            {% for grupo in grupos %}
+                <div class="border rounded p-3 mb-4">
+                    <h5 class="mb-1">{{ grupo.empresa.nombre }}</h5>
+                    <table class="table table-sm align-middle mb-3">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-end">Cantidad</th>
+                                <th class="text-end">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in grupo.items %}
+                            <tr>
+                                <td>{{ item.producto.nombre }}</td>
+                                <td class="text-end">{{ item.cantidad }}</td>
+                                <td class="text-end">${{ item.producto.precio_venta|floatformat:2 }} x {{ item.cantidad }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th class="text-end" colspan="2">Subtotal</th>
+                                <th class="text-end">${{ grupo.total }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <label class="form-label fw-semibold">Sucursal de {{ grupo.empresa.nombre }} más cercana a tu ubicación</label>
+                    {% if grupo.sucursales %}
+                        <div class="d-flex flex-column gap-2">
+                            {% for sucursal in grupo.sucursales %}
+                            <label class="border rounded p-2 d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">
+                                <input type="radio" name="sucursal_{{ grupo.empresa.id }}" value="{{ sucursal.id }}">
+                                <span>
+                                    <strong>{{ sucursal.nombre }}</strong>
+                                    <span class="text-muted small"> · {{ sucursal.direccion }}{% if sucursal.telefono %} · ☎ {{ sucursal.telefono }}{% endif %}</span>
+                                    {% if sucursal.distancia_km is not None %}
+                                        <span class="badge badge-ok rounded-pill">{{ sucursal.distancia_km|floatformat:1 }} km</span>
+                                    {% endif %}
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info py-2 mb-0">Esta empresa aún no registra sucursales. El pedido se entregará según la dirección indicada.</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Método de pago</label>
+                    {{ form.metodo_pago }}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Dirección de entrega</label>
+                    {{ form.direccion_entrega }}
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-4">
+                <a href="{% url 'carrito_detalle' %}" class="btn btn-outline-secondary">Volver al carrito</a>
+                <div class="text-end">
+                    <div class="mb-2">Total general: <strong class="fs-4">${{ total_general }}</strong></div>
+                    <button type="submit" class="btn btn-primary-custom btn-lg">Enviar compra</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const btn = document.getElementById('btn-ubicacion');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+            if (!navigator.geolocation) {
+                alert('Tu navegador no soporta geolocalización. Escribe tu dirección manualmente.');
+                return;
+            }
+            btn.disabled = true;
+            navigator.geolocation.getCurrentPosition(function (pos) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('clat', pos.coords.latitude.toFixed(6));
+                url.searchParams.set('clng', pos.coords.longitude.toFixed(6));
+                window.location.href = url.toString();
+            }, function (err) {
+                alert('No se pudo obtener tu ubicación. Escribe tu dirección manualmente.');
+                btn.disabled = false;
+            }, { enableHighAccuracy: false, timeout: 10000 });
+        });
+    });
+</script>
+{% endblock %}

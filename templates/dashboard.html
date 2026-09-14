@@ -10,6 +10,8 @@
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a href="{% url 'empresa_editar' %}" class="btn btn-outline-secondary">Editar datos de la empresa</a>
+        <a href="{% url 'sucursales_empresa' %}" class="btn btn-outline-secondary">Sucursales</a>
+        <a href="{% url 'pedidos_empresa' %}" class="btn btn-outline-secondary">Supervisar pedidos</a>
         <a href="{% url 'producto_crear' %}" class="btn btn-primary-custom">+ Nuevo producto</a>
     </div>
 </div>
@@ -75,6 +77,18 @@
         <div class="kpi-card p-4 h-100 shadow-sm">
             <div class="text-uppercase small text-light">Solicitudes</div>
             <h3 class="mt-3 mb-0 fw-bold">{{ solicitudes.count }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card p-4 h-100 shadow-sm">
+            <div class="text-uppercase small text-light">Pedidos totales</div>
+            <h3 class="mt-3 mb-0 fw-bold">{{ total_pedidos }}</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card p-4 h-100 shadow-sm">
+            <div class="text-uppercase small text-light">Pedidos pendientes</div>
+            <h3 class="mt-3 mb-0 fw-bold">{{ pedidos_pendientes }}</h3>
         </div>
     </div>
 </div>
@@ -183,6 +197,50 @@
                     </div>
                 {% empty %}
                     <p class="text-muted mb-0">No hay solicitudes pendientes.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h4 class="mb-3">Pedidos pendientes de procesar</h4>
+                {% for pedido in pendientes_recientes %}
+                    <div class="border rounded p-2 mb-2 d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>#{{ pedido.id }}</strong> · {{ pedido.cliente.username }}
+                            <div class="small text-muted">${{ pedido.total }} · {{ pedido.fecha_creacion|date:"d/m/Y H:i" }}</div>
+                        </div>
+                        <a href="{% url 'pedido_detalle' pedido.id %}" class="btn btn-sm btn-outline-primary">Ver</a>
+                    </div>
+                {% empty %}
+                    <p class="text-muted mb-0">No hay pedidos pendientes.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">Sucursales</h4>
+                    <a href="{% url 'sucursales_empresa' %}" class="btn btn-sm btn-primary-custom">Gestionar</a>
+                </div>
+                {% for sucursal in sucursales %}
+                    <div class="d-flex justify-content-between border rounded p-2 mb-2">
+                        <div>
+                            <strong>{{ sucursal.nombre }}</strong>
+                            <div class="small text-muted">{{ sucursal.direccion }}</div>
+                        </div>
+                        {% if sucursal.tiene_pedidos %}
+                            <span class="badge badge-warning align-self-center rounded-pill">Con pedidos</span>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <p class="text-muted mb-0">Sin sucursales registradas.</p>
                 {% endfor %}
             </div>
         </div>
