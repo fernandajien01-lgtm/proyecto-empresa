@@ -368,8 +368,49 @@ def chat_list(request):
         if request.user.empresa is None:
             messages.warning(request, "Tu empresa no está asociada todavía.")
             return redirect("dashboard")
+        q = request.GET.get("q", "").strip()
+        tipo = request.GET.get("tipo", "empresa")
         empleados = CustomUser.objects.filter(role="EMPLEADO", empresa=request.user.empresa)
-        return render(request, "chat_list.html", {"usuarios": empleados})
+        if q:
+            filtro = Q(cedula__icontains=q)
+            partes = [p for p in q.split(" ") if p]
+            if len(partes) >= 2:
+                filtro |= Q(first_name__icontains=partes[0], last_name__icontains=partes[-1])
+            filtro |= Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q)
+            empleados = empleados.filter(filtro)
+
+        chats_empresa = []
+        chats_cliente = []
+        if tipo == "empresa":
+            for emp in empleados:
+                ultimo = ChatMensaje.objects.filter(
+                    Q(emisor=request.user, receptor=emp) | Q(emisor=emp, receptor=request.user)
+                ).order_by("-fecha").first()
+                if ultimo:
+                    chats_empresa.append({"empleado": emp, "fecha": ultimo.fecha})
+        else:
+            for emp in empleados:
+                clientes = CustomUser.objects.filter(role="CLIENTE").filter(
+                    Q(mensajes_enviados__receptor=emp) | Q(mensajes_recibidos__emisor=emp)
+                ).distinct()
+                for cli in clientes:
+                    ultimo = ChatMensaje.objects.filter(
+                        Q(emisor=emp, receptor=cli) | Q(emisor=cli, receptor=emp)
+                    ).order_by("-fecha").first()
+                    if ultimo:
+                        chats_cliente.append({"empleado": emp, "cliente": cli, "fecha": ultimo.fecha})
+        chats_empresa.sort(key=lambda item: item["fecha"], reverse=True)
+        chats_cliente.sort(key=lambda item: item["fecha"], reverse=True)
+        return render(
+            request,
+            "chat_list.html",
+            {
+                "tipo": tipo,
+                "q": q,
+                "chats_empresa": chats_empresa,
+                "chats_cliente": chats_cliente,
+            },
+        )
 
     if request.user.role == "EMPLEADO":
         if request.user.empresa is None:
@@ -408,6 +449,31 @@ def chat_con_usuario(request, user_id):
         Q(emisor=request.user, receptor=partner) | Q(emisor=partner, receptor=request.user)
     ).order_by("fecha")
     return render(request, "chat_detail.html", {"partner": partner, "mensajes": mensajes})
+
+
+@login_required
+def chat_empleado_cliente(request, empleado_id, cliente_id):
+    empleado = get_object_or_404(CustomUser, pk=empleado_id, role="EMPLEADO")
+    cliente = get_object_or_404(CustomUser, pk=cliente_id, role="CLIENTE")
+
+    empresa_ok = (
+        request.user.role == "EMPRESA"
+        and request.user.empresa is not None
+        and empleado.empresa == request.user.empresa
+    )
+    if not (empresa_ok or request.user == empleado):
+        messages.warning(request, "No tienes acceso a este chat.")
+        return redirect("chat_list")
+
+    mensajes = ChatMensaje.objects.filter(
+        Q(emisor=empleado, receptor=cliente) | Q(emisor=cliente, receptor=empleado)
+    ).order_by("fecha")
+    titulo = f"Chat: {empleado.first_name} {empleado.last_name} (Empleado) ↔ {cliente.first_name} {cliente.last_name} (Cliente)"
+    return render(
+        request,
+        "chat_detail.html",
+        {"partner": cliente, "mensajes": mensajes, "solo_lectura": True, "titulo_chat": titulo},
+    )
 
 
 @login_required
@@ -524,10 +590,34 @@ def movimiento_crear(request):
 
 
 def producto_list(request):
+    ensure_default_categorias()
+
+    if request.method == "POST" and "contenido" in request.POST and "producto_id" in request.POST:
+        if not request.user.is_authenticated:
+            messages.warning(request, "Debes registrarte para comentar productos.")
+            return redirect("register")
+        if request.user.role == "EMPRESA":
+            messages.warning(request, "La empresa no puede comentar productos.")
+            return redirect("producto_list")
+        product_id = request.POST.get("producto_id")
+        producto = get_object_or_404(Producto, pk=product_id)
+        resena = Resena(producto=producto, autor=request.user)
+        form = ResenaForm(request.POST, initial={"autor": request.user}, instance=resena)
+        if form.is_valid():
+            resena = form.save(commit=False)
+            resena.producto = producto
+            resena.autor = request.user
+            resena.nombre_anonimo = form.cleaned_data.get("nombre_anonimo") or ""
+            resena.calificacion = form.cleaned_data.get("calificacion") or 5
+            resena.save()
+            messages.success(request, "Comentario registrado correctamente.")
+            return redirect("producto_list")
+        messages.error(request, "No se pudo guardar el comentario.")
+        return redirect("producto_list")
+
     busqueda_empresa = request.GET.get("empresa", "").strip()
     busqueda_categoria = request.GET.get("categoria", "").strip()
     busqueda_producto = request.GET.get("producto", "").strip()
-    ensure_default_categorias()
 
     if request.user.is_authenticated and request.user.role == "EMPRESA":
         productos = Producto.objects.select_related("categoria", "proveedor", "empresa").filter(empresa=request.user.empresa).all()
@@ -605,30 +695,6 @@ def producto_list(request):
         productos = productos.filter(categoria__nombre__icontains=busqueda_categoria)
     if busqueda_producto:
         productos = productos.filter(nombre__icontains=busqueda_producto)
-
-    if request.method == "POST" and "contenido" in request.POST and "producto_id" in request.POST:
-        if not request.user.is_authenticated:
-            messages.warning(request, "Debes registrarte para comentar productos.")
-            return redirect("register")
-
-        if request.user.role == "EMPRESA":
-            messages.warning(request, "La empresa no puede comentar productos.")
-            return redirect("producto_list")
-
-        product_id = request.POST.get("producto_id")
-        producto = get_object_or_404(Producto, pk=product_id)
-        form = ResenaForm(request.POST, initial={"autor": request.user})
-        if form.is_valid():
-            resena = form.save(commit=False)
-            resena.producto = producto
-            resena.autor = request.user
-            resena.nombre_anonimo = form.cleaned_data.get("nombre_anonimo") or ""
-            resena.calificacion = form.cleaned_data.get("calificacion") or 5
-            resena.save()
-            messages.success(request, "Comentario registrado correctamente.")
-            return redirect("producto_list")
-        messages.error(request, "No se pudo guardar el comentario.")
-        return render(request, "producto_list.html", {"productos": productos, "form": form, "busqueda_empresa": busqueda_empresa})
 
     context = {
         "productos": productos,

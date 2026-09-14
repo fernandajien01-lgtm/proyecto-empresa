@@ -3,20 +3,104 @@
 {% block title %}Chat{% endblock %}
 
 {% block content %}
+<style>
+    .nav-tabs {
+        border-bottom: 1px solid #A7C7E7;
+    }
+    .nav-tabs .nav-link {
+        background: #B6D0E2;
+        border: 1px solid #A7C7E7;
+        color: #000000 !important;
+    }
+    .nav-tabs .nav-link:hover,
+    .nav-tabs .nav-link.active {
+        background: #0d6efd;
+        border-color: #0d6efd;
+        color: #ffffff !important;
+    }
+    html[data-theme="dark"] .nav-tabs {
+        border-bottom-color: #A7C7E7;
+    }
+    html[data-theme="dark"] .nav-tabs .nav-link {
+        background: #B6D0E2;
+        border-color: #A7C7E7;
+        color: #e2e8f0;
+    }
+    html[data-theme="dark"] .nav-tabs .nav-link:hover,
+    html[data-theme="dark"] .nav-tabs .nav-link.active {
+        background: transparent;
+        border-color: #A7C7E7;
+        color: #ffffff;
+    }
+</style>
 <div class="card shadow-sm border-0">
     <div class="card-body p-4">
         <h2 class="mb-3">Chat</h2>
-        {% if usuarios %}
-            <div class="list-group">
-                {% for usuario in usuarios %}
-                    <a href="{% url 'chat_con_usuario' usuario.id %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                        <span>{{ usuario.username }}</span>
-                        <span class="badge bg-primary rounded-pill">Hablar con asesor</span>
-                    </a>
-                {% endfor %}
-            </div>
+
+        {% if request.user.role == 'EMPRESA' %}
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                    <a class="nav-link {% if tipo == 'empresa' %}active{% endif %}" href="{% url 'chat_list' %}?tipo=empresa{% if q %}&q={{ q|urlencode }}{% endif %}">Con empleados</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if tipo == 'cliente' %}active{% endif %}" href="{% url 'chat_list' %}?tipo=cliente{% if q %}&q={{ q|urlencode }}{% endif %}">Empleado ↔ Cliente</a>
+                </li>
+            </ul>
+
+            <form method="get" class="row g-2 mb-3">
+                <input type="hidden" name="tipo" value="{{ tipo }}">
+                <div class="col">
+                    <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Buscar empleado por nombre o cédula...">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary-custom">Filtrar</button>
+                </div>
+            </form>
+
+            {% if tipo == 'empresa' %}
+                <div class="list-group">
+                    {% for item in chats_empresa %}
+                        <a href="{% url 'chat_con_usuario' item.empleado.id %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span>
+                                <strong>{{ item.empleado.first_name }} {{ item.empleado.last_name }}</strong>
+                                <div class="small text-muted">@{{ item.empleado.username }} · C.I. {{ item.empleado.cedula|default:'—' }}</div>
+                            </span>
+                            <span class="badge bg-primary rounded-pill">Ver chat</span>
+                        </a>
+                    {% empty %}
+                        <div class="alert alert-info mb-0">No hay conversaciones con empleados que coincidan con la búsqueda.</div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="list-group">
+                    {% for item in chats_cliente %}
+                        <a href="{% url 'chat_empleado_cliente' item.empleado.id item.cliente.id %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>
+                                    <strong>{{ item.empleado.first_name }} {{ item.empleado.last_name }}</strong> (Empleado) ↔ <strong>{{ item.cliente.first_name }} {{ item.cliente.last_name }}</strong> (Cliente)
+                                    <div class="small text-muted">C.I. {{ item.empleado.cedula|default:'—' }} · @{{ item.cliente.username }}</div>
+                                </span>
+                                <span class="badge bg-primary rounded-pill">Ver</span>
+                            </div>
+                        </a>
+                    {% empty %}
+                        <div class="alert alert-info mb-0">No hay conversaciones entre empleados y clientes que coincidan con la búsqueda.</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
         {% else %}
-            <div class="alert alert-info mb-0">No hay conversaciones disponibles.</div>
+            {% if usuarios %}
+                <div class="list-group">
+                    {% for usuario in usuarios %}
+                        <a href="{% url 'chat_con_usuario' usuario.id %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span>{{ usuario.username }}</span>
+                            <span class="badge bg-primary rounded-pill">Hablar con asesor</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info mb-0">No hay conversaciones disponibles.</div>
+            {% endif %}
         {% endif %}
     </div>
 </div>

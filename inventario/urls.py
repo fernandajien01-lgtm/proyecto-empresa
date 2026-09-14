@@ -44,6 +44,11 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("chat/", views.chat_list, name="chat_list"),
     path("chat/<int:user_id>/", views.chat_con_usuario, name="chat_con_usuario"),
+    path(
+        "chat/empleado/<int:empleado_id>/cliente/<int:cliente_id>/",
+        views.chat_empleado_cliente,
+        name="chat_empleado_cliente",
+    ),
     path("empresa/editar/", views.empresa_editar, name="empresa_editar"),
     path("solicitudes/", views.solicitudes_empresa, name="solicitudes_empresa"),
     path("solicitud/<int:pk>/confirmar-aceptar/", views.confirmar_aceptar_solicitud, name="confirmar_aceptar_solicitud"),

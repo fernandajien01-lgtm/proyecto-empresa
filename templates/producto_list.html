@@ -3,6 +3,24 @@
 {% block title %}Catálogo de productos{% endblock %}
 
 {% block content %}
+<style>
+    .rate { display: flex; flex-direction: row-reverse; justify-content: flex-start; }
+    .rate input { display: none; }
+    .rate label {
+        color: #cbd5e1;
+        font-size: 1.7rem;
+        cursor: pointer;
+        padding: 0 0.1rem;
+        line-height: 1;
+        transition: color 0.15s ease;
+    }
+    .rate label:hover,
+    .rate label:hover ~ label,
+    .rate input:checked ~ label {
+        color: #ffb703;
+    }
+    .rating-display { color: #ffb703; letter-spacing: 2px; }
+</style>
 {% if user.is_authenticated and user.role != 'EMPRESA' %}
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body">
@@ -153,13 +171,18 @@
                                 {% csrf_token %}
                                 <input type="hidden" name="producto_id" value="{{ producto.id }}">
                                 <label class="form-label small fw-semibold mb-1">Calificación</label>
-                                <select name="calificacion" class="form-select mb-2">
-                                    <option value="5">5 - Excelente</option>
-                                    <option value="4">4 - Muy bueno</option>
-                                    <option value="3">3 - Bueno</option>
-                                    <option value="2">2 - Regular</option>
-                                    <option value="1">1 - Malo</option>
-                                </select>
+                                <div class="rate mb-1" id="rate-{{ producto.id }}">
+                                    <input type="radio" name="calificacion" id="star5-{{ producto.id }}" value="5" checked>
+                                    <label for="star5-{{ producto.id }}" title="5 - Excelente">★</label>
+                                    <input type="radio" name="calificacion" id="star4-{{ producto.id }}" value="4">
+                                    <label for="star4-{{ producto.id }}" title="4 - Muy bueno">★</label>
+                                    <input type="radio" name="calificacion" id="star3-{{ producto.id }}" value="3">
+                                    <label for="star3-{{ producto.id }}" title="3 - Bueno">★</label>
+                                    <input type="radio" name="calificacion" id="star2-{{ producto.id }}" value="2">
+                                    <label for="star2-{{ producto.id }}" title="2 - Regular">★</label>
+                                    <input type="radio" name="calificacion" id="star1-{{ producto.id }}" value="1">
+                                    <label for="star1-{{ producto.id }}" title="1 - Malo">★</label>
+                                </div>
                                 <textarea name="contenido" class="form-control mb-2" rows="3" placeholder="Escribe tu comentario sobre este producto..." spellcheck="true"></textarea>
                                 <button type="submit" class="btn btn-primary-custom w-100">Publicar comentario</button>
                             </form>
@@ -174,7 +197,7 @@
                                     <strong>{% if resena.autor %}{{ resena.autor.username }}{% else %}{{ resena.nombre_anonimo }}{% endif %}</strong>
                                     <span class="text-muted">{{ resena.fecha_creacion|date:"d/m/Y" }}</span>
                                 </div>
-                                <div class="small text-warning mb-1">★ {{ resena.calificacion }}/5</div>
+                                <div class="small mb-1 rating-display">{% for i in "12345" %}{% if forloop.counter <= resena.calificacion %}★{% else %}☆{% endif %}{% endfor %} <span class="text-muted">({{ resena.calificacion }}/5)</span></div>
                                 <p class="mb-2 mt-1 small">{{ resena.contenido }}</p>
                                 <div class="d-flex gap-2">
                                     <a href="{% url 'reaccion_resena' resena.id 'LIKE' %}" class="btn btn-link btn-sm p-0">👍 {{ resena.reacciones.all|length }}</a>

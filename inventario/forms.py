@@ -260,12 +260,25 @@ class LoginForm(AuthenticationForm):
     username = forms.CharField(
         label="Nombre de usuario",
         widget=forms.TextInput(
-            attrs={"class": "form-control", "autocomplete": "off", "autocapitalize": "none"}
+            attrs={
+                "class": "form-control",
+                "autocomplete": "off",
+                "autocapitalize": "none",
+                "readonly": "readonly",
+                "onfocus": "this.removeAttribute('readonly')",
+            }
         ),
     )
     password = forms.CharField(
         label="Contraseña",
-        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "off"}),
+        widget=forms.PasswordInput(
+            attrs={
+                "class": "form-control",
+                "autocomplete": "off",
+                "readonly": "readonly",
+                "onfocus": "this.removeAttribute('readonly')",
+            }
+        ),
     )
 
     def __init__(self, *args, **kwargs):

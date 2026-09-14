@@ -9,7 +9,7 @@ from django.utils import timezone
 import re
 
 from .forms import EmpresaForm, RegistroUsuarioForm, ResenaForm
-from .models import Categoria, Empresa, Producto, Proveedor, SolicitudEmpleado, Movimiento
+from .models import Categoria, Empresa, Producto, Proveedor, Resena, SolicitudEmpleado, Movimiento
 
 User = get_user_model()
 
@@ -238,6 +238,45 @@ class ProductoListAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("register"))
+
+    def test_cliente_comment_is_saved_and_shown(self):
+        empresa = Empresa.objects.create(
+            nombre="Tienda TV", descripcion="Tienda", telefono="123", direccion="Calle 1"
+        )
+        categoria = Categoria.objects.create(nombre="Electrónica")
+        proveedor = Proveedor.objects.create(
+            nombre_negocio="Proveedor TV", telefono="555", email="tv@test.com", direccion="Dir"
+        )
+        producto = Producto.objects.create(
+            nombre="Televisor OLED",
+            descripcion="Televisor OLED 55 pulgadas",
+            codigo_sku="SKU-TV001",
+            categoria=categoria,
+            proveedor=proveedor,
+            empresa=empresa,
+            precio_compra=800,
+            precio_venta=1200,
+            cantidad_stock=10,
+            stock_minimo=1,
+        )
+        cliente = User.objects.create_user(
+            username="comprador1", password="SecurePass123!", role="CLIENTE"
+        )
+        self.client.login(username="comprador1", password="SecurePass123!")
+
+        response = self.client.post(
+            reverse("producto_list"),
+            {"producto_id": producto.pk, "contenido": "Excelente calidad", "calificacion": 5},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        resena = Resena.objects.filter(producto=producto).first()
+        self.assertIsNotNone(resena)
+        self.assertEqual(resena.autor, cliente)
+        self.assertEqual(resena.contenido, "Excelente calidad")
+        self.assertEqual(resena.calificacion, 5)
+        self.assertEqual(producto.reseñas.count(), 1)
 
 
 class ProductoEditPermissionsTests(TestCase):
