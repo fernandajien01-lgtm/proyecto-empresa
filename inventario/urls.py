@@ -2,11 +2,44 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from . import views
+from .forms import LoginForm
 
 urlpatterns = [
     path("", views.producto_list, name="producto_list"),
     path("registro/", views.register, name="register"),
-    path("login/", auth_views.LoginView.as_view(template_name="login.html"), name="login"),
+    path(
+        "login/",
+        auth_views.LoginView.as_view(template_name="login.html", authentication_form=LoginForm),
+        name="login",
+    ),
+    path(
+        "recuperar-contrasena/",
+        auth_views.PasswordResetView.as_view(
+            template_name="password_reset_form.html",
+            email_template_name="password_reset_email.txt",
+            subject_template_name="password_reset_subject.txt",
+            success_url="/recuperar-contrasena/enviado/",
+        ),
+        name="password_reset",
+    ),
+    path(
+        "recuperar-contrasena/enviado/",
+        auth_views.PasswordResetDoneView.as_view(template_name="password_reset_done.html"),
+        name="password_reset_done",
+    ),
+    path(
+        "recuperar-contrasena/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name="password_reset_confirm.html",
+            success_url="/recuperar-contrasena/completado/",
+        ),
+        name="password_reset_confirm",
+    ),
+    path(
+        "recuperar-contrasena/completado/",
+        auth_views.PasswordResetCompleteView.as_view(template_name="password_reset_complete.html"),
+        name="password_reset_complete",
+    ),
     path("logout/", views.custom_logout, name="logout"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("chat/", views.chat_list, name="chat_list"),

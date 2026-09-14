@@ -1,5 +1,6 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.utils import timezone
 
 from .models import (
     Categoria,
@@ -55,6 +56,34 @@ class RegistroUsuarioForm(UserCreationForm):
         label="Dirección de la empresa",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
+    cedula = forms.CharField(
+        max_length=20,
+        required=False,
+        label="Cédula de identidad",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    telefono = forms.CharField(
+        max_length=20,
+        required=False,
+        label="Teléfono",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    residencia = forms.CharField(
+        max_length=255,
+        required=False,
+        label="Residencia",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    fecha_nacimiento = forms.DateField(
+        required=False,
+        label="Fecha de nacimiento",
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+    )
+    profile_image = forms.ImageField(
+        required=False,
+        label="Foto del empleado",
+        widget=forms.ClearableFileInput(attrs={"class": "form-control"}),
+    )
 
     class Meta:
         model = CustomUser
@@ -71,6 +100,11 @@ class RegistroUsuarioForm(UserCreationForm):
             "direccion_empresa",
             "password1",
             "password2",
+            "cedula",
+            "telefono",
+            "residencia",
+            "fecha_nacimiento",
+            "profile_image",
         )
         widgets = {
             "username": forms.TextInput(attrs={"class": "form-control"}),
@@ -79,6 +113,11 @@ class RegistroUsuarioForm(UserCreationForm):
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "password1": forms.PasswordInput(attrs={"class": "form-control"}),
             "password2": forms.PasswordInput(attrs={"class": "form-control"}),
+            "cedula": forms.TextInput(attrs={"class": "form-control"}),
+            "telefono": forms.TextInput(attrs={"class": "form-control"}),
+            "residencia": forms.TextInput(attrs={"class": "form-control"}),
+            "fecha_nacimiento": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "profile_image": forms.ClearableFileInput(attrs={"class": "form-control"}),
         }
 
     def clean(self):
@@ -88,6 +127,10 @@ class RegistroUsuarioForm(UserCreationForm):
             self.add_error("nombre_empresa", "Las empresas deben indicar un nombre.")
         if role == "EMPRESA" and not cleaned_data.get("rif_empresa"):
             self.add_error("rif_empresa", "Las empresas deben indicar un RIF.")
+        if role == "EMPLEADO":
+            for campo in ("cedula", "telefono", "residencia"):
+                if not cleaned_data.get(campo):
+                    self.add_error(campo, "Este campo es obligatorio para empleados.")
         if role == "EMPRESA" and not cleaned_data.get("username"):
             nombre_base = (cleaned_data.get("nombre_empresa") or "empresa").strip().lower()
             username_base = "".join(ch for ch in nombre_base if ch.isalnum() or ch in "_") or "empresa"
@@ -98,10 +141,57 @@ class RegistroUsuarioForm(UserCreationForm):
                 base = f"{username_base}{contador}"
                 contador += 1
             cleaned_data["username"] = base
+        cedula = cleaned_data.get("cedula")
+        if cedula:
+            cedula = cedula.strip()
+            cleaned_data["cedula"] = cedula
+            if CustomUser.objects.filter(cedula__iexact=cedula).exists():
+                self.add_error("cedula", "Ya existe un usuario registrado con esta cédula.")
+            elif role == "EMPLEADO" and not cleaned_data.get("username"):
+                username_base = "".join(ch for ch in cedula if ch.isalnum() or ch in "_") or "empleado"
+                username_base = username_base[:20]
+                base = username_base
+                contador = 1
+                while CustomUser.objects.filter(username__iexact=base).exists():
+                    base = f"{username_base}{contador}"
+                    contador += 1
+                cleaned_data["username"] = base
+        fecha_nacimiento = cleaned_data.get("fecha_nacimiento")
+        if fecha_nacimiento:
+            fecha_min, fecha_max = limites_fecha_nacimiento()
+            if fecha_nacimiento < fecha_min:
+                self.add_error("fecha_nacimiento", "La fecha no es válida: la edad máxima permitida es 105 años.")
+            elif fecha_nacimiento > fecha_max:
+                self.add_error("fecha_nacimiento", "Debes ser mayor de edad (18 años) para registrarte.")
         return cleaned_data
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        enable_spellcheck(self)
+        orden_campos = [
+            "role",
+            "first_name",
+            "last_name",
+            "username",
+            "email",
+            "nombre_empresa",
+            "rif_empresa",
+            "descripcion_empresa",
+            "telefono_empresa",
+            "direccion_empresa",
+            "cedula",
+            "telefono",
+            "residencia",
+            "fecha_nacimiento",
+            "profile_image",
+            "password1",
+            "password2",
+        ]
+        self.fields = {k: self.fields[k] for k in orden_campos if k in self.fields}
+        fecha_min, fecha_max = limites_fecha_nacimiento()
+        self.fields["fecha_nacimiento"].widget.attrs.update(
+            {"min": fecha_min.isoformat(), "max": fecha_max.isoformat()}
+        )
         self.fields["username"].required = False
         if self.instance and self.instance.role == "EMPRESA":
             self.fields["username"].required = False
@@ -118,6 +208,12 @@ class RegistroUsuarioForm(UserCreationForm):
         user = super().save(commit=False)
         user.role = self.cleaned_data["role"]
         user.username = self.cleaned_data.get("username") or user.username or "empresa"
+        user.cedula = self.cleaned_data.get("cedula") or None
+        user.telefono = self.cleaned_data.get("telefono", "")
+        user.fecha_nacimiento = self.cleaned_data.get("fecha_nacimiento")
+        if user.role == "EMPLEADO":
+            user.residencia = self.cleaned_data.get("residencia", "")
+            user.profile_image = self.cleaned_data.get("profile_image")
         if user.role == "EMPRESA":
             nombre_empresa = self.cleaned_data.get("nombre_empresa", "")
             user.username = user.username or (nombre_empresa.strip().lower().replace(" ", "_")[:20] or "empresa")
@@ -135,7 +231,49 @@ class RegistroUsuarioForm(UserCreationForm):
         return user
 
 
-class EmpresaForm(forms.ModelForm):
+def enable_spellcheck(form):
+    for field in form.fields.values():
+        widget = field.widget
+        if isinstance(widget, forms.Textarea) or getattr(widget, "input_type", "") == "text":
+            widget.attrs.setdefault("spellcheck", "true")
+
+
+def limites_fecha_nacimiento():
+    hoy = timezone.localdate()
+
+    def restar_anios(anios):
+        try:
+            return hoy.replace(year=hoy.year - anios)
+        except ValueError:
+            return hoy.replace(year=hoy.year - anios, day=28)
+
+    return restar_anios(105), restar_anios(18)
+
+
+class SpellcheckModelForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        enable_spellcheck(self)
+
+
+class LoginForm(AuthenticationForm):
+    username = forms.CharField(
+        label="Nombre de usuario",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "autocomplete": "off", "autocapitalize": "none"}
+        ),
+    )
+    password = forms.CharField(
+        label="Contraseña",
+        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "off"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        enable_spellcheck(self)
+
+
+class EmpresaForm(SpellcheckModelForm):
     class Meta:
         model = Empresa
         fields = (
@@ -164,7 +302,7 @@ class EmpresaForm(forms.ModelForm):
         self.fields["instagram"].label = "Redes sociales"
 
 
-class ProductoForm(forms.ModelForm):
+class ProductoForm(SpellcheckModelForm):
     class Meta:
         model = Producto
         fields = (
@@ -227,19 +365,41 @@ class ProductoForm(forms.ModelForm):
         return instance
 
 
-class UserProfileForm(forms.ModelForm):
+class UserProfileForm(SpellcheckModelForm):
     class Meta:
         model = CustomUser
-        fields = ("first_name", "last_name", "email", "profile_image")
+        fields = ("first_name", "last_name", "email", "profile_image", "fecha_nacimiento")
         widgets = {
             "first_name": forms.TextInput(attrs={"class": "form-control"}),
             "last_name": forms.TextInput(attrs={"class": "form-control"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "profile_image": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "fecha_nacimiento": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk and self.instance.role == "EMPRESA":
+            self.fields.pop("fecha_nacimiento")
+            return
+        fecha_min, fecha_max = limites_fecha_nacimiento()
+        self.fields["fecha_nacimiento"].widget.attrs.update(
+            {"min": fecha_min.isoformat(), "max": fecha_max.isoformat()}
+        )
 
-class MovimientoForm(forms.ModelForm):
+    def clean(self):
+        cleaned_data = super().clean()
+        fecha_nacimiento = cleaned_data.get("fecha_nacimiento")
+        if fecha_nacimiento:
+            fecha_min, fecha_max = limites_fecha_nacimiento()
+            if fecha_nacimiento < fecha_min:
+                self.add_error("fecha_nacimiento", "La fecha no es válida: la edad máxima permitida es 105 años.")
+            elif fecha_nacimiento > fecha_max:
+                self.add_error("fecha_nacimiento", "Debes ser mayor de edad (18 años) para registrarte.")
+        return cleaned_data
+
+
+class MovimientoForm(SpellcheckModelForm):
     class Meta:
         model = Movimiento
         fields = ("producto", "tipo_movimiento", "cantidad", "nota")
@@ -262,7 +422,7 @@ class MovimientoForm(forms.ModelForm):
         return cleaned_data
 
 
-class SolicitudEmpleadoForm(forms.ModelForm):
+class SolicitudEmpleadoForm(SpellcheckModelForm):
     class Meta:
         model = SolicitudEmpleado
         fields = ("empresa",)
@@ -275,7 +435,7 @@ class SolicitudEmpleadoForm(forms.ModelForm):
             self.fields["empresa"].queryset = user.empresa.__class__.objects.all() if user.empresa else user.empresa.__class__.objects.none()
 
 
-class SugerenciaForm(forms.ModelForm):
+class SugerenciaForm(SpellcheckModelForm):
     class Meta:
         model = Sugerencia
         fields = ("titulo", "contenido")
@@ -285,7 +445,7 @@ class SugerenciaForm(forms.ModelForm):
         }
 
 
-class ResenaForm(forms.ModelForm):
+class ResenaForm(SpellcheckModelForm):
     class Meta:
         model = Resena
         fields = ("nombre_anonimo", "calificacion", "contenido")
@@ -310,7 +470,7 @@ class ResenaForm(forms.ModelForm):
         return cleaned_data
 
 
-class CategoriaForm(forms.ModelForm):
+class CategoriaForm(SpellcheckModelForm):
     class Meta:
         model = Categoria
         fields = ("nombre", "descripcion")
@@ -320,7 +480,7 @@ class CategoriaForm(forms.ModelForm):
         }
 
 
-class ProveedorForm(forms.ModelForm):
+class ProveedorForm(SpellcheckModelForm):
     class Meta:
         model = Proveedor
         fields = ("nombre_negocio", "telefono", "email", "direccion")

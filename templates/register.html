@@ -12,14 +12,28 @@
                     {% csrf_token %}
                     <div class="row g-3">
                         {% for field in form %}
-                            <div class="col-md-6 {% if field.name in 'nombre_empresa,descripcion_empresa,telefono_empresa,direccion_empresa,rif_empresa' %}company-field{% endif %} {% if field.name in 'first_name,last_name,username' %}name-field{% endif %}"
-                                 {% if field.name in 'nombre_empresa,descripcion_empresa,telefono_empresa,direccion_empresa,rif_empresa' %}data-company-field="true"{% endif %}>
+                            {% if field.name == 'nombre_empresa' %}
+                                <div class="w-100 company-field" data-company-field="true"><h6 class="text-muted border-bottom pb-1 mt-2 mb-3">Datos de la empresa</h6></div>
+                            {% endif %}
+                            {% if field.name == 'cedula' %}
+                                <div class="w-100 contact-field" data-contact-field="true"><h6 class="text-muted border-bottom pb-1 mt-2 mb-3">Datos de contacto</h6></div>
+                            {% endif %}
+                            {% if field.name == 'residencia' %}
+                                <div class="w-100 employee-field" data-employee-field="true"><h6 class="text-muted border-bottom pb-1 mt-2 mb-3">Datos del empleado</h6></div>
+                            {% endif %}
+                            {% if field.name == 'password1' %}
+                                <div class="w-100"><h6 class="text-muted border-bottom pb-1 mt-2 mb-3">Seguridad</h6></div>
+                            {% endif %}
+                            <div class="col-md-6 {% if field.name in company_field_names %}company-field{% endif %} {% if field.name in contact_field_names %}contact-field{% endif %} {% if field.name in employee_field_names %}employee-field{% endif %} {% if field.name in 'first_name,last_name,username' %}name-field{% endif %}"
+                                 {% if field.name in company_field_names %}data-company-field="true"{% endif %}
+                                 {% if field.name in contact_field_names %}data-contact-field="true"{% endif %}
+                                 {% if field.name in employee_field_names %}data-employee-field="true"{% endif %}>
                                 <div class="mb-3">
                                     <label for="{{ field.id_for_label }}" class="form-label d-flex align-items-center gap-2">
                                         <span>{{ field.label }}</span>
                                         <span
                                             class="info-icon"
-                                            title="{% if field.name == 'username' %}Usa un nombre único para identificar tu cuenta en la plataforma.{% elif field.name == 'email' %}Es el correo principal de la cuenta y donde recibirás avisos importantes.{% elif field.name == 'password1' or field.name == 'password2' %}Crea una contraseña segura y luego úsala para ingresar en la app.{% elif field.name == 'role' %}Selecciona el tipo de perfil que quieres crear en la plataforma.{% elif field.name == 'nombre_empresa' %}Escribe el nombre comercial o legal de la empresa.{% elif field.name == 'rif_empresa' %}Indica el número de identificación fiscal de la empresa.{% elif field.name == 'descripcion_empresa' %}Describe brevemente lo que ofrece tu empresa a clientes y empleados.{% elif field.name == 'telefono_empresa' %}Añade un número de contacto para que clientes puedan comunicarse con la empresa.{% elif field.name == 'direccion_empresa' %}Escribe la dirección física o principal de la empresa.{% elif field.name == 'first_name' %}Escribe tu nombre real para identificar tu cuenta.{% elif field.name == 'last_name' %}Escribe tu apellido para completar tu perfil.{% else %}{{ field.help_text|default:'Completa este campo para continuar con tu registro.' }}{% endif %}"
+                                            title="{% if field.name == 'username' %}Usa un nombre único para identificar tu cuenta en la plataforma.{% elif field.name == 'email' %}Es el correo principal de la cuenta y donde recibirás avisos importantes.{% elif field.name == 'password1' or field.name == 'password2' %}Crea una contraseña segura y luego úsala para ingresar en la app.{% elif field.name == 'role' %}Selecciona el tipo de perfil que quieres crear en la plataforma.{% elif field.name == 'nombre_empresa' %}Escribe el nombre comercial o legal de la empresa.{% elif field.name == 'rif_empresa' %}Indica el número de identificación fiscal de la empresa.{% elif field.name == 'descripcion_empresa' %}Describe brevemente lo que ofrece tu empresa a clientes y empleados.{% elif field.name == 'telefono_empresa' %}Añade un número de contacto para que clientes puedan comunicarse con la empresa.{% elif field.name == 'direccion_empresa' %}Escribe la dirección física o principal de la empresa.{% elif field.name == 'cedula' %}Número de cédula de identidad, necesario para el registro.{% elif field.name == 'telefono' %}Número de teléfono de contacto.{% elif field.name == 'residencia' %}Dirección de residencia del empleado.{% elif field.name == 'fecha_nacimiento' %}Fecha de nacimiento del cliente o empleado.{% elif field.name == 'profile_image' %}Foto del empleado para su expediente.{% elif field.name == 'first_name' %}Escribe tu nombre real para identificar tu cuenta.{% elif field.name == 'last_name' %}Escribe tu apellido para completar tu perfil.{% else %}{{ field.help_text|default:'Completa este campo para continuar con tu registro.' }}{% endif %}"
                                             style="cursor:pointer; display:inline-flex; align-items:center; justify-content:center; width:1.2rem; height:1.2rem; border-radius:50%; border:1px solid #0d6efd; color:#0d6efd; background:#eef6ff; font-size:0.9rem; font-weight:700; line-height:1;">i</span>
                                     </label>
                                     {% if field.name == 'password1' or field.name == 'password2' %}
@@ -31,6 +45,11 @@
                                     {% endif %}
                                     {% if field.errors %}
                                         <div class="text-danger small mt-1">{{ field.errors|join:', ' }}</div>
+                                    {% endif %}
+                                    {% if field.name == 'profile_image' %}
+                                        <div class="mt-2" id="profile_image_preview_wrap" style="display:none">
+                                            <img id="profile_image_preview" class="rounded-circle border" style="width:90px; height:90px; object-fit:cover" alt="Vista previa">
+                                        </div>
                                     {% endif %}
                                 </div>
                             </div>
@@ -57,6 +76,24 @@
             });
         }
 
+        function toggleEmployeeFields() {
+            const isEmployee = roleSelect && roleSelect.value === 'EMPLEADO';
+            document.querySelectorAll('[data-employee-field="true"]').forEach(function (el) {
+                const wrapper = el.closest('.employee-field');
+                if (!wrapper) return;
+                wrapper.style.display = isEmployee ? 'block' : 'none';
+            });
+        }
+
+        function toggleContactFields() {
+            const isContactRole = roleSelect && (roleSelect.value === 'EMPLEADO' || roleSelect.value === 'CLIENTE');
+            document.querySelectorAll('[data-contact-field="true"]').forEach(function (el) {
+                const wrapper = el.closest('.contact-field');
+                if (!wrapper) return;
+                wrapper.style.display = isContactRole ? 'block' : 'none';
+            });
+        }
+
         function toggleNameFields() {
             const isCompany = roleSelect && roleSelect.value === 'EMPRESA';
             document.querySelectorAll('.name-field').forEach(function(el) {
@@ -67,9 +104,13 @@
         if (roleSelect) {
             roleSelect.addEventListener('change', function () {
                 toggleCompanyFields();
+                toggleEmployeeFields();
+                toggleContactFields();
                 toggleNameFields();
             });
             toggleCompanyFields();
+            toggleEmployeeFields();
+            toggleContactFields();
             toggleNameFields();
         }
 
@@ -82,6 +123,22 @@
                 this.innerHTML = isPassword ? '<span>◌</span>' : '<span>◉</span>';
             });
         });
+
+        const fotoInput = document.querySelector('#id_profile_image');
+        const previewWrap = document.getElementById('profile_image_preview_wrap');
+        const previewImg = document.getElementById('profile_image_preview');
+        if (fotoInput && previewWrap && previewImg) {
+            fotoInput.addEventListener('change', function () {
+                const file = this.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    previewImg.src = e.target.result;
+                    previewWrap.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            });
+        }
     });
 </script>
 {% endblock %}

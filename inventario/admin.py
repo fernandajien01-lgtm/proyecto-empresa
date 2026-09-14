@@ -18,12 +18,14 @@ from .models import (
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
-    list_display = ("username", "email", "role", "empresa")
+    list_display = ("username", "email", "role", "empresa", "cedula", "telefono", "residencia")
     fieldsets = UserAdmin.fieldsets + (
         ("Rol y empresa", {"fields": ("role", "empresa")}),
+        ("Datos del empleado", {"fields": ("cedula", "telefono", "residencia", "fecha_nacimiento", "profile_image")}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
         ("Rol y empresa", {"fields": ("role", "empresa")}),
+        ("Datos del empleado", {"fields": ("cedula", "telefono", "residencia", "fecha_nacimiento", "profile_image")}),
     )
 
 

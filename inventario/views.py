@@ -103,7 +103,7 @@ def confirmar_eliminar_cuenta(request):
 def register(request):
     ensure_default_categorias()
     if request.method == "POST":
-        form = RegistroUsuarioForm(request.POST)
+        form = RegistroUsuarioForm(request.POST, request.FILES)
         if form.is_valid():
             user = form.save()
             user.set_password(form.cleaned_data["password1"])
@@ -116,7 +116,22 @@ def register(request):
             return redirect("producto_list")
     else:
         form = RegistroUsuarioForm()
-    return render(request, "register.html", {"form": form})
+    return render(
+        request,
+        "register.html",
+        {
+            "form": form,
+            "company_field_names": [
+                "nombre_empresa",
+                "rif_empresa",
+                "descripcion_empresa",
+                "telefono_empresa",
+                "direccion_empresa",
+            ],
+            "contact_field_names": ["cedula", "telefono", "fecha_nacimiento"],
+            "employee_field_names": ["residencia", "profile_image"],
+        },
+    )
 
 
 @login_required

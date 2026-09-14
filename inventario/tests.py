@@ -1,6 +1,12 @@
+from django.core import mail
 from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
+from django.contrib.auth.hashers import check_password
+from django.utils import timezone
+import re
 
 from .forms import EmpresaForm, RegistroUsuarioForm, ResenaForm
 from .models import Categoria, Empresa, Producto, Proveedor, SolicitudEmpleado, Movimiento
@@ -67,6 +73,159 @@ class EmpresaFormTests(TestCase):
         })
 
         self.assertTrue(form.is_valid(), form.errors)
+
+
+class RegistroEmpleadoTests(TestCase):
+    def test_empleado_registration_requires_cedula_telefono_residencia(self):
+        form = RegistroUsuarioForm(data={
+            "role": "EMPLEADO",
+            "username": "",
+            "email": "empleado1@example.com",
+            "first_name": "Juan",
+            "last_name": "Perez",
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertFalse(form.is_valid())
+        for campo in ("cedula", "telefono", "residencia"):
+            self.assertIn(campo, form.errors)
+
+    def test_empleado_registration_accepts_complete_employee_data(self):
+        form = RegistroUsuarioForm(data={
+            "role": "EMPLEADO",
+            "username": "",
+            "email": "empleado1@example.com",
+            "first_name": "Juan",
+            "last_name": "Perez",
+            "cedula": "V-12345678",
+            "telefono": "04121234567",
+            "residencia": "Av. Principal #10",
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        user = form.save()
+        self.assertEqual(user.cedula, "V-12345678")
+        self.assertEqual(user.telefono, "04121234567")
+        self.assertEqual(user.residencia, "Av. Principal #10")
+        self.assertEqual(user.username, "V12345678")
+
+    def test_cedula_duplicate_is_rejected(self):
+        User.objects.create_user(username="jose", password="SecurePass123!", role="EMPLEADO", cedula="V-12345678")
+        form = RegistroUsuarioForm(data={
+            "role": "EMPLEADO",
+            "username": "",
+            "email": "empleado2@example.com",
+            "first_name": "Ana",
+            "last_name": "Lopez",
+            "cedula": "V-12345678",
+            "telefono": "04121234567",
+            "residencia": "Calle 5",
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("cedula", form.errors)
+
+
+class RegistroClienteTests(TestCase):
+    def test_cliente_registration_stores_cedula_and_telefono(self):
+        form = RegistroUsuarioForm(data={
+            "role": "CLIENTE",
+            "username": "pepito",
+            "email": "cliente1@example.com",
+            "first_name": "Pepe",
+            "last_name": "Gonzalez",
+            "cedula": "V-98765432",
+            "telefono": "04140000000",
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        user = form.save()
+        self.assertEqual(user.role, "CLIENTE")
+        self.assertEqual(user.cedula, "V-98765432")
+        self.assertEqual(user.telefono, "04140000000")
+
+    def test_cliente_registration_stores_fecha_nacimiento(self):
+        form = RegistroUsuarioForm(data={
+            "role": "CLIENTE",
+            "username": "pepito",
+            "email": "cliente2@example.com",
+            "first_name": "Pepe",
+            "last_name": "Gonzalez",
+            "cedula": "V-11112222",
+            "telefono": "04140000001",
+            "fecha_nacimiento": "1995-06-15",
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        user = form.save()
+        self.assertEqual(str(user.fecha_nacimiento), "1995-06-15")
+
+    def test_cliente_registration_rejects_year_out_of_range(self):
+        form = RegistroUsuarioForm(data={
+            "role": "CLIENTE",
+            "username": "pepito",
+            "email": "cliente3@example.com",
+            "first_name": "Pepe",
+            "last_name": "Gonzalez",
+            "cedula": "V-33334444",
+            "telefono": "04140000002",
+            "fecha_nacimiento": "1920-06-15",
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("fecha_nacimiento", form.errors)
+
+    def test_cliente_registration_rejects_minor(self):
+        hoy = timezone.localdate()
+        nacimiento_menor = hoy.replace(year=hoy.year - 10)
+        form = RegistroUsuarioForm(data={
+            "role": "CLIENTE",
+            "username": "menor",
+            "email": "menor@example.com",
+            "first_name": "Pepe",
+            "last_name": "Gonzalez",
+            "cedula": "V-55556666",
+            "telefono": "04140000003",
+            "fecha_nacimiento": nacimiento_menor.isoformat(),
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("fecha_nacimiento", form.errors)
+
+    def test_cliente_registration_rejects_over_105(self):
+        hoy = timezone.localdate()
+        try:
+            nacimiento_viejo = hoy.replace(year=hoy.year - 106)
+        except ValueError:
+            nacimiento_viejo = hoy.replace(year=hoy.year - 106, day=28)
+        form = RegistroUsuarioForm(data={
+            "role": "CLIENTE",
+            "username": "abuelito",
+            "email": "abuelito@example.com",
+            "first_name": "Pepe",
+            "last_name": "Gonzalez",
+            "cedula": "V-77778888",
+            "telefono": "04140000004",
+            "fecha_nacimiento": nacimiento_viejo.isoformat(),
+            "password1": "SecurePass123!",
+            "password2": "SecurePass123!",
+        })
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("fecha_nacimiento", form.errors)
 
 
 class ProductoListAccessTests(TestCase):
@@ -186,3 +345,47 @@ class MovimientoDeletionOnLeaveTests(TestCase):
 
         # After leaving, movimientos for that employee and company should be removed
         self.assertEqual(Movimiento.objects.filter(usuario=empleado, producto__empresa=empresa).count(), 0)
+
+
+@override_settings(
+    DEBUG=False,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    DEFAULT_FROM_EMAIL="no-reply@example.com",
+)
+class PasswordResetTests(TestCase):
+    def test_password_reset_sends_email_and_changes_password(self):
+        user = User.objects.create_user(
+            username="cliente_reset",
+            email="cliente@example.com",
+            password="OldSecurePass123!",
+        )
+
+        reset_form = PasswordResetForm(data={"email": "cliente@example.com"})
+        self.assertTrue(reset_form.is_valid(), reset_form.errors)
+        reset_form.save(
+            domain_override="testserver",
+            use_https=False,
+            request=None,
+            from_email="no-reply@example.com",
+            email_template_name="password_reset_email.txt",
+            subject_template_name="password_reset_subject.txt",
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        reset_path = re.search(r"http://testserver(/recuperar-contrasena/\S+/\S+/)", message.body).group(1)
+
+        uidb64, token = reset_path.strip("/").split("/")[-2:]
+        self.assertTrue(uidb64)
+        self.assertTrue(token)
+        password_form = SetPasswordForm(
+            user,
+            data={
+                "new_password1": "NewSecurePass123!",
+                "new_password2": "NewSecurePass123!",
+            },
+        )
+        self.assertTrue(password_form.is_valid(), password_form.errors)
+        password_form.save()
+        user.refresh_from_db()
+        self.assertTrue(check_password("NewSecurePass123!", user.password))

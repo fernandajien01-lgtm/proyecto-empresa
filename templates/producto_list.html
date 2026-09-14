@@ -9,7 +9,7 @@
         <form method="get" class="row g-2 align-items-end">
             <div class="col-md-4">
                 <label for="empresa" class="form-label fw-semibold">Buscar empresa</label>
-                <input type="text" id="empresa" name="empresa" value="{{ busqueda_empresa }}" class="form-control" placeholder="Ej. Nike, Ferretería X, etc.">
+                <input type="text" id="empresa" name="empresa" value="{{ busqueda_empresa }}" class="form-control" placeholder="Ej. Nike, Ferretería X, etc." spellcheck="true">
             </div>
             <div class="col-md-4">
                 <label for="categoria" class="form-label fw-semibold">Categoría</label>
@@ -22,7 +22,7 @@
             </div>
             <div class="col-md-3">
                 <label for="producto" class="form-label fw-semibold">Nombre del producto</label>
-                <input type="text" id="producto" name="producto" value="{{ busqueda_producto }}" class="form-control" placeholder="Ej. camiseta, peine">
+                <input type="text" id="producto" name="producto" value="{{ busqueda_producto }}" class="form-control" placeholder="Ej. camiseta, peine" spellcheck="true">
             </div>
             <div class="col-md-1 d-flex">
                 <button type="submit" class="btn btn-primary-custom w-100 align-self-end">Buscar</button>
@@ -160,7 +160,7 @@
                                     <option value="2">2 - Regular</option>
                                     <option value="1">1 - Malo</option>
                                 </select>
-                                <textarea name="contenido" class="form-control mb-2" rows="3" placeholder="Escribe tu comentario sobre este producto..."></textarea>
+                                <textarea name="contenido" class="form-control mb-2" rows="3" placeholder="Escribe tu comentario sobre este producto..." spellcheck="true"></textarea>
                                 <button type="submit" class="btn btn-primary-custom w-100">Publicar comentario</button>
                             </form>
                         </div>

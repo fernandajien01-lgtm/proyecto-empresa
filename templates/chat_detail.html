@@ -27,7 +27,7 @@
         <form method="post">
             {% csrf_token %}
             <div class="input-group">
-                <input type="text" name="mensaje" class="form-control" placeholder="Escribe tu mensaje..." required>
+                <input type="text" name="mensaje" class="form-control" placeholder="Escribe tu mensaje..." spellcheck="true" required>
                 <button type="submit" class="btn btn-primary-custom">Enviar</button>
             </div>
         </form>
