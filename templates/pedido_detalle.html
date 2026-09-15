@@ -46,7 +46,7 @@
                     </div>
                     <div class="small">
                         <div class="mb-1">Cliente: <strong>{{ pedido.cliente.first_name }} {{ pedido.cliente.last_name }} (@{{ pedido.cliente.username }})</strong></div>
-                        <div class="mb-1">Método de pago: <strong>{{ pedido.get_metodo_pago_display }}</strong></div>
+                        <div class="mb-1">Método de pago: {% include "includes/metodo_pago_icon.html" with value=pedido.metodo_pago %} <strong>{{ pedido.get_metodo_pago_display }}</strong></div>
                         <div class="mb-1">Dirección de entrega: <strong>{{ pedido.direccion_entrega|default:'No indicada' }}</strong></div>
                         <div class="mb-1">Sucursal: <strong>{{ pedido.sucursal.nombre|default:'Sin sucursal' }}</strong>{% if pedido.sucursal %} <span class="text-muted">({{ pedido.sucursal.direccion }})</span>{% endif %}</div>
                         <div class="mb-1">Fecha: {{ pedido.fecha_creacion|date:"d/m/Y H:i" }}</div>

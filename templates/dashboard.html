@@ -246,4 +246,51 @@
         </div>
     </div>
 </div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">Movimientos de inventario</h4>
+                    <a href="{% url 'movimientos_list' %}" class="btn btn-sm btn-primary-custom">Ver historial</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th class="text-end">Cantidad</th>
+                                <th>Empleado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in movimientos_recientes %}
+                            <tr>
+                                <td>{{ m.fecha_hora|date:"d/m/Y H:i" }}</td>
+                                <td>{{ m.producto.nombre }}</td>
+                                <td>
+                                    {% if m.tipo_movimiento == 'ENTRADA' %}
+                                        <span class="badge badge-ok rounded-pill">Entrada</span>
+                                    {% else %}
+                                        <span class="badge badge-danger rounded-pill">Salida</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ m.cantidad }}</td>
+                                <td>{{ m.usuario.username|default:'—' }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">Aún no hay movimientos registrados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

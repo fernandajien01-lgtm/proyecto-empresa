@@ -8,6 +8,7 @@ from .models import (
     CustomUser,
     Empresa,
     Movimiento,
+    Notificacion,
     Pedido,
     PedidoItem,
     Producto,
@@ -109,3 +110,9 @@ class PedidoAdmin(admin.ModelAdmin):
 @admin.register(PedidoItem)
 class PedidoItemAdmin(admin.ModelAdmin):
     list_display = ("pedido", "producto", "cantidad", "precio")
+
+
+@admin.register(Notificacion)
+class NotificacionAdmin(admin.ModelAdmin):
+    list_display = ("usuario", "titulo", "tipo", "leida", "fecha_creacion")
+    list_filter = ("leida", "tipo")

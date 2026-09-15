@@ -345,3 +345,30 @@ class ChatMensaje(models.Model):
 
     def __str__(self):
         return f"{self.emisor} -> {self.receptor}: {self.mensaje[:40]}"
+
+
+class Notificacion(models.Model):
+    PEDIDO = "PEDIDO"
+    TIPO_CHOICES = (
+        (PEDIDO, "Pedido"),
+    )
+
+    usuario = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="notificaciones")
+    titulo = models.CharField(max_length=120)
+    mensaje = models.TextField(blank=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=PEDIDO)
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, null=True, blank=True, related_name="notificaciones")
+    leida = models.BooleanField(default=False)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-fecha_creacion"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["usuario", "tipo", "pedido"],
+                name="uniq_notificacion_usuario_tipo_pedido",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.titulo} → {self.usuario.username} ({'leída' if self.leida else 'no leída'})"

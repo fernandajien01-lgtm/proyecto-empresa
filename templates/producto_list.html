@@ -21,6 +21,19 @@
     }
     .rating-display { color: #ffb703; letter-spacing: 2px; }
 </style>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('form[data-cart-form]').forEach(function (form) {
+            form.addEventListener('submit', function () {
+                const input = form.querySelector('input[name="cantidad"]');
+                const extra = input ? (parseInt(input.value, 10) || 0) : 0;
+                if (typeof window.cartBounce === 'function') {
+                    window.cartBounce(extra);
+                }
+            });
+        });
+    });
+</script>
 {% if user.is_authenticated and user.role != 'EMPRESA' %}
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body">
@@ -162,7 +175,7 @@
                     {% endif %}
 
                     {% if user.is_authenticated and user.role == 'CLIENTE' %}
-                        <form method="post" action="{% url 'carrito_agregar' producto.pk %}" class="mt-2">
+                        <form method="post" action="{% url 'carrito_agregar' producto.pk %}" class="mt-2" data-cart-form>
                             {% csrf_token %}
                             <div class="input-group">
                                 <input type="number" name="cantidad" value="1" min="1" max="{{ producto.cantidad_stock }}" class="form-control" style="max-width:90px;">
@@ -205,9 +218,9 @@
                                 </div>
                                 <div class="small mb-1 rating-display">{% for i in "12345" %}{% if forloop.counter <= resena.calificacion %}★{% else %}☆{% endif %}{% endfor %} <span class="text-muted">({{ resena.calificacion }}/5)</span></div>
                                 <p class="mb-2 mt-1 small">{{ resena.contenido }}</p>
-                                <div class="d-flex gap-2">
-                                    <a href="{% url 'reaccion_resena' resena.id 'LIKE' %}" class="btn btn-link btn-sm p-0">👍 {{ resena.reacciones.all|length }}</a>
-                                    <a href="{% url 'reaccion_resena' resena.id 'DISLIKE' %}" class="btn btn-link btn-sm p-0">👎 {{ resena.reacciones.all|length }}</a>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <a href="{% url 'reaccion_resena' resena.id 'LIKE' %}" class="btn btn-sm p-0 {% if resena.mi_tipo == 'LIKE' %}fw-bold{% endif %}" style="{% if resena.mi_tipo == 'LIKE' %}color:#16a34a;{% endif %}" title="Me gusta">👍 {{ resena.total_likes }}{% if resena.mi_tipo == 'LIKE' %} <span class="small text-muted fw-normal">(tú)</span>{% endif %}</a>
+                                    <a href="{% url 'reaccion_resena' resena.id 'DISLIKE' %}" class="btn btn-sm p-0 {% if resena.mi_tipo == 'DISLIKE' %}fw-bold{% endif %}" style="{% if resena.mi_tipo == 'DISLIKE' %}color:#dc2626;{% endif %}" title="No me gusta">👎 {{ resena.total_dislikes }}{% if resena.mi_tipo == 'DISLIKE' %} <span class="small text-muted fw-normal">(tú)</span>{% endif %}</a>
                                 </div>
                             </div>
                         {% empty %}

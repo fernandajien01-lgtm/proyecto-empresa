@@ -15,13 +15,14 @@ from .models import (
     CarritoItem,
     ChatMensaje,
     Empresa,
+    Movimiento,
+    Notificacion,
     Pedido,
     PedidoItem,
     Producto,
     Proveedor,
     Resena,
     SolicitudEmpleado,
-    Movimiento,
     Sucursal,
 )
 
@@ -474,6 +475,36 @@ class CarritoCompraTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.cantidad, 5)
 
+    def test_actualizar_cantidad_desde_checkout_vuelve_al_checkout(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        item = CarritoItem.objects.get(carrito__cliente=self.cliente)
+        resp = self.client.post(
+            reverse("carrito_actualizar", args=[item.pk]),
+            {"cantidad": 4, "next": reverse("carrito_checkout")},
+        )
+        self.assertRedirects(resp, reverse("carrito_checkout"), fetch_redirect_response=False)
+        item.refresh_from_db()
+        self.assertEqual(item.cantidad, 4)
+
+    def test_actualizar_no_acepta_redirect_externo(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        item = CarritoItem.objects.get(carrito__cliente=self.cliente)
+        resp = self.client.post(
+            reverse("carrito_actualizar", args=[item.pk]),
+            {"cantidad": 3, "next": "https://evil.example/phish"},
+        )
+        self.assertRedirects(resp, reverse("carrito_detalle"), fetch_redirect_response=False)
+
+    def test_quitar_desde_checkout_vuelve_al_checkout(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
+        item = CarritoItem.objects.get(carrito__cliente=self.cliente)
+        resp = self.client.post(reverse("carrito_quitar", args=[item.pk]), {"next": reverse("carrito_checkout")})
+        self.assertRedirects(resp, reverse("carrito_checkout"), fetch_redirect_response=False)
+        self.assertFalse(CarritoItem.objects.filter(pk=item.pk).exists())
+
     def test_checkout_crea_pedido_y_vacia_carrito(self):
         self._login_cliente()
         self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
@@ -504,6 +535,51 @@ class CarritoCompraTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Pedido.objects.filter(cliente=self.cliente).exists())
+
+    def test_checkout_notifica_a_empleados_de_la_empresa(self):
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 123",
+        })
+        pedido = Pedido.objects.get(cliente=self.cliente)
+        notif = Notificacion.objects.get(usuario=self.empleado, pedido=pedido)
+        self.assertEqual(notif.tipo, Notificacion.PEDIDO)
+        self.assertFalse(notif.leida)
+        self.assertIn(pedido.cliente.username, notif.mensaje)
+        self.assertEqual(Notificacion.objects.filter(usuario=self.empleado, leida=False).count(), 1)
+
+    def test_solo_empleados_de_esa_empresa_reciben_notificacion(self):
+        otra_empresa = Empresa.objects.create(nombre="Otra", telefono="2", direccion="D2")
+        otro_empleado = User.objects.create_user(username="empleado2", password="p", role="EMPLEADO", empresa=otra_empresa)
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 1})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "TRANSFERENCIA",
+            "direccion_entrega": "Casa 123",
+        })
+        self.assertEqual(Notificacion.objects.filter(usuario=self.empleado).count(), 1)
+        self.assertEqual(Notificacion.objects.filter(usuario=otro_empleado).count(), 0)
+
+    def test_pedidos_empleado_marca_notificaciones_como_leidas(self):
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+        from .views import pedidos_empleado
+        self._login_cliente()
+        self.client.post(reverse("carrito_agregar", args=[self.producto.pk]), {"cantidad": 2})
+        self.client.post(reverse("carrito_checkout"), {
+            "metodo_pago": "EFECTIVO",
+            "direccion_entrega": "Casa 123",
+        })
+        self.assertEqual(Notificacion.objects.filter(usuario=self.empleado, leida=False).count(), 1)
+        rf = RequestFactory()
+        request = rf.get(reverse("pedidos_empleado"))
+        request.user = self.empleado
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        pedidos_empleado(request)
+        self.assertEqual(Notificacion.objects.filter(usuario=self.empleado, leida=False).count(), 0)
 
     def test_empleado_procesa_pedido(self):
         self._login_cliente()
@@ -634,3 +710,164 @@ class CarritoCompraTests(TestCase):
         request.user = self.cliente
         response = pedido_detalle(request, pk=pedido.pk)
         self.assertEqual(response.status_code, 200)
+
+    def test_movimiento_form_restringe_productos_a_empresa(self):
+        from .forms import MovimientoForm
+        otra = Empresa.objects.create(nombre="Otra", telefono="2", direccion="D")
+        otro_prod = Producto.objects.create(
+            nombre="Producto B",
+            descripcion="x",
+            codigo_sku="SKU-B",
+            categoria=self.categoria,
+            proveedor=self.proveedor,
+            empresa=otra,
+            precio_compra=10,
+            precio_venta=20,
+            cantidad_stock=5,
+            stock_minimo=1,
+        )
+        form = MovimientoForm(
+            data={"producto": otro_prod.pk, "tipo_movimiento": Movimiento.TIPO_ENTRADA, "cantidad": 5},
+            user=self.empleado,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertEqual(Movimiento.objects.count(), 0)
+
+
+
+class ReaccionResenaTests(TestCase):
+    def setUp(self):
+        self.cliente = User.objects.create_user(username="reactor", password="p", role="CLIENTE")
+        self.cliente2 = User.objects.create_user(username="reactor2", password="p", role="CLIENTE")
+        self.empresa = Empresa.objects.create(nombre="E", telefono="1", direccion="D")
+        self.prod = Producto.objects.create(
+            nombre="P", descripcion="x", codigo_sku="SKU-R1",
+            categoria=Categoria.objects.create(nombre="Categoria R"),
+            proveedor=Proveedor.objects.create(nombre_negocio="Prov R", telefono="1"),
+            empresa=self.empresa,
+            precio_compra=10, precio_venta=20, cantidad_stock=5, stock_minimo=1,
+        )
+        self.resena = Resena.objects.create(producto=self.prod, autor=self.cliente, calificacion=5, contenido="Bueno")
+
+    def _reacciones(self):
+        from .models import ReaccionResena
+        likes = ReaccionResena.objects.filter(resena=self.resena, tipo=ReaccionResena.LIKE).count()
+        dislikes = ReaccionResena.objects.filter(resena=self.resena, tipo=ReaccionResena.DISLIKE).count()
+        return likes, dislikes
+
+    def test_like_cambia_a_dislike_sin_duplicar(self):
+        self.assertTrue(self.client.login(username="reactor", password="p"))
+        self.client.post(reverse("reaccion_resena", args=[self.resena.pk, "LIKE"]))
+        likes, dislikes = self._reacciones()
+        self.assertEqual((likes, dislikes), (1, 0))
+        self.client.post(reverse("reaccion_resena", args=[self.resena.pk, "DISLIKE"]))
+        likes, dislikes = self._reacciones()
+        self.assertEqual((likes, dislikes), (0, 1))
+
+    def test_like_repetido_retira_reaccion(self):
+        self.assertTrue(self.client.login(username="reactor", password="p"))
+        self.client.post(reverse("reaccion_resena", args=[self.resena.pk, "LIKE"]))
+        self.client.post(reverse("reaccion_resena", args=[self.resena.pk, "LIKE"]))
+        likes, dislikes = self._reacciones()
+        self.assertEqual((likes, dislikes), (0, 0))
+
+    def test_conteos_separados_por_usuario(self):
+        self.assertTrue(self.client.login(username="reactor", password="p"))
+        self.client.post(reverse("reaccion_resena", args=[self.resena.pk, "LIKE"]))
+        self.assertTrue(self.client.login(username="reactor2", password="p"))
+        self.client.post(reverse("reaccion_resena", args=[self.resena.pk, "DISLIKE"]))
+        likes, dislikes = self._reacciones()
+        self.assertEqual((likes, dislikes), (1, 1))
+
+
+class MovimientosHistorialTests(TestCase):
+    def setUp(self):
+        self.empresa = Empresa.objects.create(nombre="Emp Mov", telefono="1", direccion="D")
+        self.empresa_user = User.objects.create_user(username="dueno", password="p", role="EMPRESA", empresa=self.empresa)
+        self.empleado1 = User.objects.create_user(username="emp1", password="p", role="EMPLEADO", empresa=self.empresa)
+        self.empleado2 = User.objects.create_user(username="emp2", password="p", role="EMPLEADO", empresa=self.empresa)
+        self.categoria = Categoria.objects.create(nombre="Cat Mov")
+        self.proveedor = Proveedor.objects.create(nombre_negocio="Prov Mov", telefono="1")
+        self.prod1 = Producto.objects.create(
+            nombre="Prod 1", descripcion="x", codigo_sku="SKU-M1", categoria=self.categoria,
+            proveedor=self.proveedor, empresa=self.empresa,
+            precio_compra=10, precio_venta=20, cantidad_stock=10, stock_minimo=1,
+        )
+        self.prod2 = Producto.objects.create(
+            nombre="Prod 2", descripcion="x", codigo_sku="SKU-M2", categoria=self.categoria,
+            proveedor=self.proveedor, empresa=self.empresa,
+            precio_compra=10, precio_venta=20, cantidad_stock=10, stock_minimo=1,
+        )
+
+    def _mov(self, usuario, producto, tipo, nota):
+        return Movimiento.objects.create(
+            producto=producto, tipo_movimiento=tipo, cantidad=3, usuario=usuario, nota=nota,
+        )
+
+    def _rf_get(self, url, usuario):
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+        rf = RequestFactory()
+        request = rf.get(url)
+        request.user = usuario
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        return request
+
+    def test_empleado_ve_solo_sus_movimientos_en_su_pestana(self):
+        from .views import movimiento_crear
+        self._mov(self.empleado1, self.prod1, Movimiento.TIPO_ENTRADA, nota="mov-uno")
+        self._mov(self.empleado2, self.prod2, Movimiento.TIPO_SALIDA, nota="mov-dos")
+        request = self._rf_get(reverse("movimiento_crear"), self.empleado1)
+        response = movimiento_crear(request)
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("mov-uno", content)
+        self.assertNotIn("mov-dos", content)
+
+    def test_empleado_filtra_su_historial_por_tipo(self):
+        from .views import movimiento_crear
+        self._mov(self.empleado1, self.prod1, Movimiento.TIPO_ENTRADA, nota="mov-entrada")
+        self._mov(self.empleado1, self.prod2, Movimiento.TIPO_SALIDA, nota="mov-salida")
+        request = self._rf_get(reverse("movimiento_crear") + "?tipo=ENTRADA", self.empleado1)
+        response = movimiento_crear(request)
+        content = response.content.decode()
+        self.assertIn("mov-entrada", content)
+        self.assertNotIn("mov-salida", content)
+
+    def test_empleado_no_accede_a_gestion(self):
+        from .views import movimientos_list
+        request = self._rf_get(reverse("movimientos_list"), self.empleado1)
+        response = movimientos_list(request)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("dashboard"))
+
+    def test_empresa_ve_todos_los_movimientos_y_filtra(self):
+        from .views import movimientos_list
+        m1 = self._mov(self.empleado1, self.prod1, Movimiento.TIPO_ENTRADA, nota="mov-a")
+        m2 = self._mov(self.empleado2, self.prod2, Movimiento.TIPO_SALIDA, nota="mov-b")
+        request = self._rf_get(reverse("movimientos_list"), self.empresa_user)
+        content = movimientos_list(request).content.decode()
+        self.assertIn(m1.nota, content)
+        self.assertIn(m2.nota, content)
+        request = self._rf_get(
+            reverse("movimientos_list") + "?empleado=%d" % self.empleado1.pk, self.empresa_user
+        )
+        content = movimientos_list(request).content.decode()
+        self.assertIn(m1.nota, content)
+        self.assertNotIn(m2.nota, content)
+        request = self._rf_get(reverse("movimientos_list") + "?tipo=SALIDA", self.empresa_user)
+        content = movimientos_list(request).content.decode()
+        self.assertNotIn(m1.nota, content)
+        self.assertIn(m2.nota, content)
+
+    def test_empleado_se_queda_en_pestana_al_registrar(self):
+        self.assertTrue(self.client.login(username="emp1", password="p"))
+        resp = self.client.post(reverse("movimiento_crear"), {
+            "producto": self.prod1.pk,
+            "tipo_movimiento": "ENTRADA",
+            "cantidad": 5,
+            "nota": "",
+        })
+        self.assertRedirects(resp, reverse("movimiento_crear"), fetch_redirect_response=False)
+        self.assertEqual(Movimiento.objects.filter(usuario=self.empleado1, producto=self.prod1).count(), 1)

@@ -9,7 +9,7 @@ urlpatterns = [
     path("registro/", views.register, name="register"),
     path(
         "login/",
-        auth_views.LoginView.as_view(template_name="login.html", authentication_form=LoginForm),
+        views.CustomLoginView.as_view(template_name="login.html", authentication_form=LoginForm),
         name="login",
     ),
     path(
@@ -82,6 +82,7 @@ urlpatterns = [
     path("editar_perfil/", views.editar_perfil, name="editar_perfil"),
     path("confirmar_eliminar_cuenta/", views.confirmar_eliminar_cuenta, name="confirmar_eliminar_cuenta"),
     path("movimiento/nuevo/", views.movimiento_crear, name="movimiento_crear"),
+    path("movimientos/", views.movimientos_list, name="movimientos_list"),
     path("producto/<int:producto_id>/resena/", views.resena_crear, name="resena_crear"),
     path("producto/<int:producto_id>/reaccion/<str:tipo>/", views.reaccion_producto, name="reaccion_producto"),
     path("resena/<int:resena_id>/reaccion/<str:tipo>/", views.reaccion_resena, name="reaccion_resena"),

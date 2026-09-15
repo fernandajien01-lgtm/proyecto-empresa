@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 
-{% block title %}Registrar movimiento{% endblock %}
+{% block title %}Movimientos{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-6">
+<div class="row g-4">
+    <div class="{% if movimientos %}col-lg-5{% else %}col-lg-6{% endif %}">
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <h2 class="mb-3">Registrar movimiento de inventario</h2>
@@ -24,5 +24,78 @@
             </div>
         </div>
     </div>
+
+    {% if movimientos %}
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h4 class="mb-0">
+                        Mis movimientos
+                        <span class="badge bg-secondary rounded-pill align-middle">{{ total_movimientos }}</span>
+                    </h4>
+                    <form method="get" class="d-flex align-items-center gap-2">
+                        <select name="tipo" class="form-select form-select-sm" style="width:auto;" aria-label="Filtrar por tipo">
+                            <option value="">Todos</option>
+                            <option value="ENTRADA" {% if filtro_tipo == 'ENTRADA' %}selected{% endif %}>Entradas</option>
+                            <option value="SALIDA" {% if filtro_tipo == 'SALIDA' %}selected{% endif %}>Salidas</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
+                        {% if filtro_tipo %}
+                            <a href="{% url 'movimiento_crear' %}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+                        {% endif %}
+                    </form>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th class="text-end">Cantidad</th>
+                                <th>Nota</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in movimientos %}
+                            <tr>
+                                <td>{{ m.fecha_hora|date:"d/m/Y H:i" }}</td>
+                                <td>{{ m.producto.nombre }}</td>
+                                <td>
+                                    {% if m.tipo_movimiento == 'ENTRADA' %}
+                                        <span class="badge badge-ok rounded-pill">Entrada</span>
+                                    {% else %}
+                                        <span class="badge badge-danger rounded-pill">Salida</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ m.cantidad }}</td>
+                                <td class="text-muted small">{{ m.nota|default:"—" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">Sin movimientos registrados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if movimientos.paginator.num_pages > 1 %}
+                <nav aria-label="Paginación de movimientos">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if movimientos.has_previous %}
+                        <li class="page-item"><a class="page-link" href="{% url 'movimiento_crear' %}?tipo={{ filtro_tipo|urlencode }}&pagina={{ movimientos.previous_page_number }}">Anterior</a></li>
+                        {% endif %}
+                        <li class="page-item disabled"><span class="page-link">Página {{ movimientos.number }} de {{ movimientos.paginator.num_pages }}</span></li>
+                        {% if movimientos.has_next %}
+                        <li class="page-item"><a class="page-link" href="{% url 'movimiento_crear' %}?tipo={{ filtro_tipo|urlencode }}&pagina={{ movimientos.next_page_number }}">Siguiente</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

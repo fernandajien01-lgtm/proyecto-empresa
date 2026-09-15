@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}Movimientos de inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h2 class="fw-bold mb-0">Movimientos de inventario</h2>
+    <a href="{% url 'movimiento_crear' %}" class="btn btn-primary-custom">+ Registrar movimiento</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="kpi-card p-4 shadow-sm h-100">
+            <div class="text-uppercase small text-light">Total movimientos</div>
+            <h3 class="mt-2 mb-0 fw-bold">{{ resumen.total }}</h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card p-4 shadow-sm h-100">
+            <div class="text-uppercase small text-light">Entradas</div>
+            <h3 class="mt-2 mb-0 fw-bold">{{ resumen.entradas }} <span class="h6 text-light">/ {{ resumen.unidades_entrada }} uds</span></h3>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-card p-4 shadow-sm h-100">
+            <div class="text-uppercase small text-light">Salidas</div>
+            <h3 class="mt-2 mb-0 fw-bold">{{ resumen.salidas }} <span class="h6 text-light">/ {{ resumen.unidades_salida }} uds</span></h3>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end mb-3">
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-1" for="filtro-empleado">Empleado</label>
+                <select name="empleado" id="filtro-empleado" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for emp in empleados %}
+                        <option value="{{ emp.id }}" {% if filtro_empleado == emp.id|stringformat:'s' %}selected{% endif %}>{{ emp.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small text-muted mb-1" for="filtro-tipo">Tipo</label>
+                <select name="tipo" id="filtro-tipo" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="ENTRADA" {% if filtro_tipo == 'ENTRADA' %}selected{% endif %}>Entradas</option>
+                    <option value="SALIDA" {% if filtro_tipo == 'SALIDA' %}selected{% endif %}>Salidas</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
+            </div>
+            {% if filtro_empleado or filtro_tipo %}
+            <div class="col-auto">
+                <a href="{% url 'movimientos_list' %}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+            </div>
+            {% endif %}
+        </form>
+
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Producto</th>
+                        <th>Tipo</th>
+                        <th class="text-end">Cantidad</th>
+                        <th>Empleado</th>
+                        <th>Nota</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movimientos %}
+                    <tr>
+                        <td>{{ m.fecha_hora|date:"d/m/Y H:i" }}</td>
+                        <td>{{ m.producto.nombre }}</td>
+                        <td>
+                            {% if m.tipo_movimiento == 'ENTRADA' %}
+                                <span class="badge badge-ok rounded-pill">Entrada</span>
+                            {% else %}
+                                <span class="badge badge-danger rounded-pill">Salida</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">{{ m.cantidad }}</td>
+                        <td>{{ m.usuario.username|default:'—' }}</td>
+                        <td class="text-muted small">{{ m.nota|default:'—' }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No hay movimientos registrados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if movimientos.paginator.num_pages > 1 %}
+        <nav aria-label="Paginación de movimientos">
+            <ul class="pagination pagination-sm mb-0">
+                {% if movimientos.has_previous %}
+                <li class="page-item"><a class="page-link" href="{% url 'movimientos_list' %}?empleado={{ filtro_empleado }}&tipo={{ filtro_tipo|urlencode }}&pagina={{ movimientos.previous_page_number }}">Anterior</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Página {{ movimientos.number }} de {{ movimientos.paginator.num_pages }}</span></li>
+                {% if movimientos.has_next %}
+                <li class="page-item"><a class="page-link" href="{% url 'movimientos_list' %}?empleado={{ filtro_empleado }}&tipo={{ filtro_tipo|urlencode }}&pagina={{ movimientos.next_page_number }}">Siguiente</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

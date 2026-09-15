@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Inventario E-Commerce{% endblock %}</title>
+    <title>{% block title %}Fer&Jos Inventory{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2048'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='24'%20y2='48'%3E%3Cstop%20stop-color='%2338bdf8'/%3E%3Cstop%20offset='1'%20stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x='9'%20y='13'%20width='30'%20height='28'%20rx='7'%20fill='url(%23g)'/%3E%3Cpath%20d='M9%2021.5h30'%20stroke='%23ffffff'%20stroke-opacity='.5'%20stroke-width='2'/%3E%3Cpath%20d='M24%2013v28'%20stroke='%23ffffff'%20stroke-opacity='.35'%20stroke-width='2'/%3E%3Cpath%20d='M15%2011.5%2012.5%206.5h23l-2.5%205'%20fill='%230ea5e9'/%3E%3Cpath%20d='M36.5%204l1.7%203.6%203.8%201.7-3.8%201.7-1.7%203.6-1.7-3.6-3.8-1.7%203.8-1.7z'%20fill='%23fbbf24'/%3E%3C/svg%3E">
     <style>
 body {
             background: #ADD8E6;
@@ -13,10 +14,137 @@ body {
             transition: background-color 0.2s ease, color 0.2s ease;
         }
         .navbar {
-            background: #1e293b;
+            background: linear-gradient(120deg, #0f172a 0%, #1e293b 45%, #334155 100%);
+            background-size: 250% 250%;
+            animation: navbarGradient 15s ease-in-out infinite;
+            padding-top: .85rem;
+            padding-bottom: .85rem;
+            transition: padding .25s ease, box-shadow .25s ease;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+        }
+        @keyframes navbarGradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .navbar-scrolled {
+            padding-top: .45rem !important;
+            padding-bottom: .45rem !important;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .45);
+        }
+        .nav-enter {
+            animation: navDrop .55s ease;
+        }
+        @keyframes navDrop {
+            from { opacity: 0; transform: translateY(-14px); }
+            to { opacity: 1; transform: none; }
+        }
+        .navbar-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            transition: transform .2s ease, text-shadow .2s ease;
+        }
+        .navbar-brand:hover {
+            transform: translateY(-1px);
+            text-shadow: 0 0 16px rgba(56, 189, 248, .5);
+        }
+        .navbar-brand svg {
+            color: #38bdf8;
+        }
+        .logo-mark {
+            display: inline-flex;
+            filter: drop-shadow(0 3px 8px rgba(56, 189, 248, .5));
+            animation: logoFloat 3.6s ease-in-out infinite;
+            transition: transform .25s ease;
+        }
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-3px) rotate(-2deg); }
+        }
+        .navbar-brand:hover .logo-mark {
+            animation-play-state: paused;
+            transform: rotate(-10deg) scale(1.12);
+        }
+        .brand-name {
+            display: inline-flex;
+            flex-direction: column;
+            line-height: 1.1;
+            margin-left: .1rem;
+        }
+        .brand-sub {
+            font-size: .66rem;
+            letter-spacing: .2em;
+            color: #7dd3fc;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .logo-shine {
+            animation: logoShine 4.6s ease-in-out infinite;
+        }
+        @keyframes logoShine {
+            0%, 100% { opacity: 0; }
+            6%, 22% { opacity: .35; }
+            34% { opacity: 0; }
         }
         .navbar-brand, .nav-link, .dropdown-toggle {
             color: #f8fafc !important;
+        }
+        .nav-link {
+            position: relative;
+            transition: color .2s ease, transform .2s ease, text-shadow .2s ease;
+        }
+        .nav-link::after {
+            content: "";
+            position: absolute;
+            left: .5rem;
+            right: .5rem;
+            bottom: .15rem;
+            height: 2px;
+            border-radius: 9999px;
+            background: #38bdf8;
+            transform: scaleX(0);
+            transform-origin: center;
+            transition: transform .25s ease;
+        }
+        .nav-link:hover::after,
+        .nav-link:focus-visible::after {
+            transform: scaleX(1);
+        }
+        .nav-link:hover,
+        .nav-link:focus-visible {
+            color: #7dd3fc !important;
+            transform: translateY(-1px);
+            text-shadow: 0 0 14px rgba(56, 189, 248, .6);
+        }
+        .navbar-nav .nav-link svg {
+            vertical-align: -2px;
+            margin-right: .35rem;
+        }
+        .navbar .dropdown-menu {
+            animation: dropdownFade .18s ease;
+            transform-origin: top right;
+        }
+        @keyframes dropdownFade {
+            from { opacity: 0; transform: translateY(-6px) scale(.98); }
+            to { opacity: 1; transform: none; }
+        }
+        .navbar-toggler {
+            border-color: rgba(248, 250, 252, .45);
+        }
+        .navbar-toggler:focus {
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, .4);
+        }
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28248,250,252,0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+        .btn-register {
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .btn-register:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 18px rgba(56, 189, 248, .5);
         }
         .sidebar-card {
             background: #ffffff;
@@ -95,6 +223,50 @@ body {
         .theme-toggle:focus-visible {
             background: rgba(248, 250, 252, 0.15);
         }
+        .cart-icon {
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+        .cart-link {
+            display: inline-flex;
+            align-items: center;
+            transition: transform 0.15s ease;
+        }
+        .cart-link:hover .cart-icon {
+            transform: scale(1.15) rotate(-6deg);
+        }
+        .cart-bounce {
+            animation: cartBounce 0.6s ease;
+        }
+        @keyframes cartBounce {
+            0%, 100% { transform: rotate(0) scale(1); }
+            20% { transform: rotate(-18deg) scale(1.25); }
+            45% { transform: rotate(14deg) scale(1.25); }
+            65% { transform: rotate(-10deg) scale(1.1); }
+            82% { transform: rotate(6deg) scale(1.05); }
+        }
+        .cart-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.25rem;
+            transition: transform 0.2s ease;
+        }
+        .cart-badge-pop {
+            animation: cartBadgePop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes cartBadgePop {
+            0% { transform: scale(0); }
+            60% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+        .cart-badge-jump {
+            animation: cartBadgeJump 0.45s ease;
+        }
+        @keyframes cartBadgeJump {
+            0%, 100% { transform: translateY(0) scale(1); }
+            40% { transform: translateY(-6px) scale(1.25); }
+        }
         html[data-theme="dark"] body {
             background: #0f172a;
             color: #e2e8f0;
@@ -156,32 +328,121 @@ body {
     </script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg shadow-sm">
+    <nav class="navbar navbar-expand-lg shadow-sm nav-enter">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="{% url 'producto_list' %}">Inventario & Catálogo</a>
+            <a class="navbar-brand fw-bold" href="{% url 'producto_list' %}" title="Fer&Jos Inventory">
+                <span class="logo-mark" aria-hidden="true">
+                    <svg width="38" height="38" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">
+                        <defs>
+                            <linearGradient id="logoGradA" x1="0" y1="0" x2="24" y2="48" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#38bdf8"/>
+                                <stop offset="1" stop-color="#6366f1"/>
+                            </linearGradient>
+                            <linearGradient id="logoGradB" x1="0" y1="0" x2="24" y2="48" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#0ea5e9"/>
+                                <stop offset="1" stop-color="#4f46e5"/>
+                            </linearGradient>
+                        </defs>
+                        <g>
+                            <rect x="9" y="13" width="30" height="28" rx="7" fill="url(#logoGradA)"/>
+                            <path d="M9 21.5h30" stroke="#ffffff" stroke-opacity=".5" stroke-width="2"/>
+                            <path d="M24 13v28" stroke="#ffffff" stroke-opacity=".35" stroke-width="2"/>
+                            <path d="M17 13v28" stroke="#ffffff" stroke-opacity=".18" stroke-width="2"/>
+                            <path d="M31 13v28" stroke="#ffffff" stroke-opacity=".18" stroke-width="2"/>
+                        </g>
+                        <path d="M14 13.5 12 6.5h24l-2 7" fill="url(#logoGradB)"/>
+                        <path d="M12 6.5h24" stroke="#ffffff" stroke-opacity=".55" stroke-width="2"/>
+                        <path class="logo-shine" d="M28 0h16v14h-16z" fill="#ffffff" opacity="0"/>
+                        <path d="M36.5 4l1.7 3.6L42 9.3l-3.8 1.7L36.5 14.6l-1.7-3.6L31 9.3l3.8-1.7z" fill="#fbbf24"/>
+                    </svg>
+                </span>
+                <span class="brand-name">
+                    Fer&amp;Jos
+                    <span class="brand-sub">Inventory</span>
+                </span>
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="mainNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="{% url 'producto_list' %}">Catálogo</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'producto_list' %}">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2 2 7l10 5 10-5-10-5z"></path><path d="m2 17 10 5 10-5"></path><path d="m2 12 10 5 10-5"></path></svg>
+                            Catálogo
+                        </a>
+                    </li>
                     {% if user.is_authenticated %}
                         {% if user.role == 'EMPRESA' %}
-                            <li class="nav-item"><a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'solicitudes_empresa' %}">Solicitudes</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'dashboard' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                    Dashboard
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'solicitudes_empresa' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
+                                    Solicitudes
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'chat_list' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                    Chat
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'producto_crear' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                                    Nuevo producto
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'movimientos_list' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                                    Movimientos
+                                </a>
+                            </li>
                         {% elif user.role == 'EMPLEADO' %}
                             {% if user.empresa %}
-                                <li class="nav-item"><a class="nav-link" href="{% url 'pedidos_empleado' %}">Pedidos</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{% url 'movimiento_crear' %}">Movimientos</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{% url 'producto_crear' %}">Nuevo producto</a></li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'pedidos_empleado' %}">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                                        Pedidos
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'movimiento_crear' %}">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                                        Movimientos
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'producto_crear' %}">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                                        Nuevo producto
+                                    </a>
+                                </li>
                             {% endif %}
-                            <li class="nav-item"><a class="nav-link" href="{% url 'chat_list' %}">Chat</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{% url 'mis_solicitudes' %}">Mis solicitudes</a></li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'chat_list' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                    Chat
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'mis_solicitudes' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                                    Mis solicitudes
+                                </a>
+                            </li>
                         {% elif user.role == 'CLIENTE' %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'mis_pedidos' %}">Mis pedidos</a>
+                                <a class="nav-link" href="{% url 'mis_pedidos' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                                    Mis pedidos
+                                </a>
                             </li>
                         {% endif %}
                     {% endif %}
@@ -189,12 +450,46 @@ body {
                 <ul class="navbar-nav ms-auto align-items-center">
                     {% if user.is_authenticated and user.role == 'CLIENTE' %}
                         <li class="nav-item me-2">
-                            <a class="nav-link position-relative" href="{% url 'carrito_detalle' %}" title="Carrito de compras">
-                                🛒
-                                {% if cart_items %}
-                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ cart_items }}</span>
-                                {% endif %}
+                            <a class="nav-link position-relative cart-link" href="{% url 'carrito_detalle' %}" title="Carrito de compras">
+                                <span id="cartIcon" class="cart-icon" aria-hidden="true">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                        <circle cx="9" cy="21" r="1"></circle>
+                                        <circle cx="20" cy="21" r="1"></circle>
+                                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                                    </svg>
+                                </span>
+                                <span id="cartBadge" class="cart-badge position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger {% if not cart_items %}d-none{% endif %}">{{ cart_items }}</span>
+                                <span class="visually-hidden">Carrito, {{ cart_items }} artículos</span>
                             </a>
+                        </li>
+                    {% endif %}
+                    {% if user.is_authenticated and user.role == 'EMPLEADO' and user.empresa %}
+                        <li class="nav-item dropdown me-2">
+                            <a class="nav-link position-relative" href="#" data-bs-toggle="dropdown" title="Notificaciones" aria-label="Notificaciones">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                                <span class="cart-badge position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger {% if not notificaciones_no_leidas %}d-none{% endif %}" id="notifBadge">{{ notificaciones_no_leidas }}</span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" style="min-width:300px;">
+                                {% if notificaciones_recientes %}
+                                    {% for n in notificaciones_recientes %}
+                                    <li>
+                                        <a class="dropdown-item d-flex flex-column align-items-start" href="{% url 'pedidos_empleado' %}">
+                                            <span class="fw-semibold">{{ n.titulo }}</span>
+                                            <small class="text-muted">{{ n.mensaje }}</small>
+                                            <small class="text-muted">{{ n.fecha_creacion|date:"d/m \a\ l\a\s H:i" }}</small>
+                                        </a>
+                                    </li>
+                                    {% if not forloop.last %}<li><hr class="dropdown-divider"></li>{% endif %}
+                                    {% endfor %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item fw-semibold" href="{% url 'pedidos_empleado' %}">Ver todos mis pedidos</a></li>
+                                {% else %}
+                                    <li><span class="dropdown-item-text text-muted">Sin notificaciones nuevas</span></li>
+                                {% endif %}
+                            </ul>
                         </li>
                     {% endif %}
                     <li class="nav-item me-2">
@@ -213,15 +508,27 @@ body {
                                 <span>{{ user.username }} · {{ user.role }}</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{% url 'editar_perfil' %}">Perfil</a></li>
-                                <li><a class="dropdown-item text-danger" href="{% url 'confirmar_eliminar_cuenta' %}">Eliminar cuenta</a></li>
+                                <li><a class="dropdown-item" href="{% url 'editar_perfil' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                    Perfil
+                                </a></li>
+                                <li><a class="dropdown-item text-danger" href="{% url 'confirmar_eliminar_cuenta' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                    Eliminar cuenta
+                                </a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{% url 'logout' %}">Cerrar sesión</a></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                                    Cerrar sesión
+                                </a></li>
                             </ul>
                         </li>
                     {% else %}
-                        <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Iniciar sesión</a></li>
-                        <li class="nav-item"><a class="btn btn-light ms-2" href="{% url 'register' %}">Registrarse</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                            Iniciar sesión
+                        </a></li>
+                        <li class="nav-item"><a class="btn btn-light ms-2 btn-register" href="{% url 'register' %}">Registrarse</a></li>
                     {% endif %}
                 </ul>
             </div>
@@ -260,6 +567,43 @@ body {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         (function () {
+            const icon = document.getElementById('cartIcon');
+            const badge = document.getElementById('cartBadge');
+
+            function playAnim(el, cls) {
+                if (!el) return;
+                el.classList.remove(cls);
+                void el.offsetWidth;
+                el.classList.add(cls);
+            }
+
+            window.cartBounce = function (extra) {
+                playAnim(icon, 'cart-bounce');
+                if (badge) {
+                    if (extra && extra > 0) {
+                        const current = parseInt(badge.textContent, 10) || 0;
+                        const total = current + extra;
+                        if (total > 0) {
+                            badge.textContent = total;
+                            badge.classList.remove('d-none');
+                        }
+                    }
+                    playAnim(badge, 'cart-badge-pop');
+                }
+            };
+
+            document.addEventListener('DOMContentLoaded', function () {
+                if (badge && !badge.classList.contains('d-none')) {
+                    setTimeout(function () {
+                        playAnim(badge, 'cart-badge-jump');
+                    }, 300);
+                }
+            });
+        }());
+    </script>
+
+    <script>
+        (function () {
             const toggle = document.getElementById("themeToggle");
             const icon = document.getElementById("themeIcon");
             if (!toggle || !icon) return;
@@ -282,6 +626,22 @@ body {
                 }
                 updateThemeControls();
             });
+        }());
+    </script>
+
+    <script>
+        (function () {
+            var nav = document.querySelector('.navbar');
+            if (!nav) return;
+            function updateNav() {
+                if (window.scrollY > 10) {
+                    nav.classList.add('navbar-scrolled');
+                } else {
+                    nav.classList.remove('navbar-scrolled');
+                }
+            }
+            window.addEventListener('scroll', updateNav, { passive: true });
+            updateNav();
         }());
     </script>
 </body>

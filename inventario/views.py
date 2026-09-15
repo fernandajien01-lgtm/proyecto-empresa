@@ -3,11 +3,15 @@ from math import asin, cos, radians, sin, sqrt
 
 from django.contrib import messages
 from django.contrib.auth import login, logout
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import Count, F, OuterRef, Prefetch, Q, Subquery, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -31,6 +35,7 @@ from .models import (
     CustomUser,
     Empresa,
     Movimiento,
+    Notificacion,
     Pedido,
     PedidoItem,
     Producto,
@@ -43,6 +48,16 @@ from .models import (
     Sugerencia,
     ensure_default_categorias,
 )
+
+
+class CustomLoginView(auth_views.LoginView):
+    def get_success_url(self):
+        url = self.get_redirect_url()
+        if url:
+            return url
+        if self.request.user.is_authenticated and self.request.user.role == "EMPRESA":
+            return reverse("dashboard")
+        return reverse("producto_list")
 
 
 def distancia_km(lat1, lon1, lat2, lon2):
@@ -198,6 +213,11 @@ def dashboard(request):
     pedidos = Pedido.objects.filter(empresa=empresa)
     pedidos_pendientes = pedidos.filter(estado=Pedido.PENDIENTE).count()
     sucursales = empresa.sucursales.all()
+    movimientos_recientes = (
+        Movimiento.objects.filter(producto__empresa=empresa)
+        .select_related("producto", "usuario")
+        .order_by("-fecha_hora")[:5]
+    )
 
     context = {
         "productos": productos,
@@ -212,6 +232,7 @@ def dashboard(request):
         "total_pedidos": pedidos.count(),
         "pedidos_pendientes": pedidos_pendientes,
         "sucursales": sucursales,
+        "movimientos_recientes": movimientos_recientes,
     }
     return render(request, "dashboard.html", context)
 
@@ -606,6 +627,38 @@ def producto_eliminar(request, pk):
     return render(request, "producto_confirm_delete.html", {"producto": producto})
 
 
+def _pagina_segura(paginator, raw_page):
+    try:
+        page = int(raw_page or 1)
+    except (TypeError, ValueError):
+        page = 1
+    if page < 1:
+        page = 1
+    if page > paginator.num_pages:
+        page = paginator.num_pages or 1
+    return page
+
+
+def _movimiento_crear_context(request, form):
+    context = {"form": form}
+    if request.user.role == "EMPLEADO":
+        movimientos = (
+            Movimiento.objects.filter(usuario=request.user, producto__empresa=request.user.empresa)
+            .select_related("producto")
+            .order_by("-fecha_hora")
+        )
+        tipo = request.GET.get("tipo", "")
+        if tipo in {Movimiento.TIPO_ENTRADA, Movimiento.TIPO_SALIDA}:
+            movimientos = movimientos.filter(tipo_movimiento=tipo)
+        else:
+            tipo = ""
+        paginator = Paginator(movimientos, 20)
+        context["movimientos"] = paginator.page(_pagina_segura(paginator, request.GET.get("pagina")))
+        context["filtro_tipo"] = tipo
+        context["total_movimientos"] = paginator.count
+    return context
+
+
 @login_required
 def movimiento_crear(request):
     if request.user.role not in {"EMPRESA", "EMPLEADO"}:
@@ -625,15 +678,93 @@ def movimiento_crear(request):
             else:
                 if producto.cantidad_stock < movimiento.cantidad:
                     form.add_error("cantidad", "No hay stock suficiente para esta salida.")
-                    return render(request, "movimiento_form.html", {"form": form})
+                    return render(request, "movimiento_form.html", _movimiento_crear_context(request, form))
                 producto.cantidad_stock -= movimiento.cantidad
             producto.save()
             movimiento.save()
             messages.success(request, "Movimiento de inventario registrado correctamente.")
-            return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
+            if request.user.role == "EMPRESA":
+                return redirect("dashboard")
+            return redirect("movimiento_crear")
     else:
         form = MovimientoForm(user=request.user)
-    return render(request, "movimiento_form.html", {"form": form})
+    return render(request, "movimiento_form.html", _movimiento_crear_context(request, form))
+
+
+@login_required
+def movimientos_list(request):
+    if request.user.role != "EMPRESA" or request.user.empresa is None:
+        messages.warning(request, "Solo la empresa puede consultar el historial de movimientos.")
+        return redirect("dashboard")
+    empresa = request.user.empresa
+    movimientos = (
+        Movimiento.objects.filter(producto__empresa=empresa)
+        .select_related("producto", "usuario")
+        .order_by("-fecha_hora")
+    )
+    empleado_id = request.GET.get("empleado", "")
+    if empleado_id and empleado_id.isdigit():
+        movimientos = movimientos.filter(usuario_id=int(empleado_id))
+    else:
+        empleado_id = ""
+    tipo = request.GET.get("tipo", "")
+    if tipo in {Movimiento.TIPO_ENTRADA, Movimiento.TIPO_SALIDA}:
+        movimientos = movimientos.filter(tipo_movimiento=tipo)
+    else:
+        tipo = ""
+    entradas = movimientos.filter(tipo_movimiento=Movimiento.TIPO_ENTRADA)
+    salidas = movimientos.filter(tipo_movimiento=Movimiento.TIPO_SALIDA)
+    resumen = {
+        "total": movimientos.count(),
+        "entradas": entradas.count(),
+        "salidas": salidas.count(),
+        "unidades_entrada": entradas.aggregate(total=Sum("cantidad"))["total"] or 0,
+        "unidades_salida": salidas.aggregate(total=Sum("cantidad"))["total"] or 0,
+    }
+    paginator = Paginator(movimientos, 20)
+    empleados = CustomUser.objects.filter(role="EMPLEADO", empresa=empresa).order_by("username")
+    return render(
+        request,
+        "movimientos_list.html",
+        {
+            "movimientos": paginator.page(_pagina_segura(paginator, request.GET.get("pagina"))),
+            "empleados": empleados,
+            "filtro_empleado": empleado_id,
+            "filtro_tipo": tipo,
+            "resumen": resumen,
+        },
+    )
+
+
+def _notificar_nuevo_pedido(pedido):
+    empleados = CustomUser.objects.filter(role="EMPLEADO", empresa=pedido.empresa)
+    for empleado in empleados:
+        Notificacion.objects.get_or_create(
+            usuario=empleado,
+            tipo=Notificacion.PEDIDO,
+            pedido=pedido,
+            defaults={
+                "titulo": f"Nuevo pedido #{pedido.pk}",
+                "mensaje": (
+                    f"El cliente {pedido.cliente.username} realizó un pedido por "
+                    f"${pedido.total}. Revisa para confirmar la compra."
+                ),
+            },
+        )
+
+
+def _reseñas_prefetch(user):
+    qs = Resena.objects.annotate(
+        total_likes=Count("reacciones", filter=Q(reacciones__tipo=ReaccionResena.LIKE)),
+        total_dislikes=Count("reacciones", filter=Q(reacciones__tipo=ReaccionResena.DISLIKE)),
+    )
+    if user.is_authenticated:
+        qs = qs.annotate(
+            mi_tipo=Subquery(
+                ReaccionResena.objects.filter(resena=OuterRef("pk"), usuario=user).values("tipo")[:1]
+            )
+        )
+    return Prefetch("reseñas", queryset=qs.prefetch_related("reacciones"))
 
 
 def producto_list(request):
@@ -667,7 +798,7 @@ def producto_list(request):
     busqueda_producto = request.GET.get("producto", "").strip()
 
     if request.user.is_authenticated and request.user.role == "EMPRESA":
-        productos = Producto.objects.select_related("categoria", "proveedor", "empresa").filter(empresa=request.user.empresa).all()
+        productos = Producto.objects.select_related("categoria", "proveedor", "empresa").filter(empresa=request.user.empresa).all().prefetch_related(_reseñas_prefetch(request.user))
         context = {
             "productos": productos,
             "form": ResenaForm(),
@@ -724,6 +855,8 @@ def producto_list(request):
         if busqueda_producto:
             productos = productos.filter(nombre__icontains=busqueda_producto)
 
+        productos = productos.prefetch_related(_reseñas_prefetch(request.user))
+
         context = {
             "productos": productos,
             "form": ResenaForm(),
@@ -742,6 +875,8 @@ def producto_list(request):
         productos = productos.filter(categoria__nombre__icontains=busqueda_categoria)
     if busqueda_producto:
         productos = productos.filter(nombre__icontains=busqueda_producto)
+
+    productos = productos.prefetch_related(_reseñas_prefetch(request.user))
 
     context = {
         "productos": productos,
@@ -773,10 +908,18 @@ def reaccion_resena(request, resena_id, tipo):
         messages.error(request, "Tipo de reacción inválido.")
         return redirect("producto_list")
     resena = get_object_or_404(Resena, pk=resena_id)
-    reaccion, created = ReaccionResena.objects.get_or_create(resena=resena, usuario=request.user)
-    reaccion.tipo = tipo
-    reaccion.save()
-    messages.success(request, "Tu reacción a la reseña fue registrada.")
+    reaccion = ReaccionResena.objects.filter(resena=resena, usuario=request.user).first()
+    if reaccion is not None:
+        if reaccion.tipo == tipo:
+            reaccion.delete()
+            messages.info(request, "Reacción retirada.")
+        else:
+            reaccion.tipo = tipo
+            reaccion.save()
+            messages.success(request, "Te gusta esta reseña." if tipo == ReaccionResena.LIKE else "Has marcado esta reseña.")
+    else:
+        ReaccionResena.objects.create(resena=resena, usuario=request.user, tipo=tipo)
+        messages.success(request, "Te gusta esta reseña." if tipo == ReaccionResena.LIKE else "Has marcado esta reseña.")
     return redirect("producto_list")
 
 
@@ -889,6 +1032,11 @@ def carrito_actualizar(request, item_id):
         item.cantidad = cantidad
         item.save()
         messages.success(request, "Carrito actualizado.")
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
     return redirect("carrito_detalle")
 
 
@@ -900,6 +1048,11 @@ def carrito_quitar(request, item_id):
     item = get_object_or_404(CarritoItem, pk=item_id, carrito__cliente=request.user)
     item.delete()
     messages.info(request, f"{item.producto.nombre} se eliminó del carrito.")
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
     return redirect("carrito_detalle")
 
 
@@ -955,6 +1108,7 @@ def carrito_checkout(request):
                         cantidad=i.cantidad,
                         precio=i.producto.precio_venta,
                     )
+                _notificar_nuevo_pedido(pedido)
                 creados += 1
             carrito.items.all().delete()
             messages.success(
@@ -1098,6 +1252,7 @@ def pedidos_empleado(request):
         messages.warning(request, "Solo empleados con empresa pueden gestionar pedidos.")
         return redirect("producto_list")
     empresa = request.user.empresa
+    request.user.notificaciones.filter(tipo=Notificacion.PEDIDO, leida=False).update(leida=True)
     pendientes = (
         Pedido.objects.filter(empresa=empresa, estado=Pedido.PENDIENTE)
         .select_related("cliente", "sucursal")

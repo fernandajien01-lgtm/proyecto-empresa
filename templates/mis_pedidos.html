@@ -28,7 +28,7 @@
                             {% endfor %}
                         </div>
                         <div class="d-flex justify-content-between small text-muted mt-2">
-                            <span>Pago: {{ pedido.get_metodo_pago_display }}{% if pedido.sucursal %} · Sucursal: {{ pedido.sucursal.nombre }}{% endif %}</span>
+                            <span>Pago: {% include "includes/metodo_pago_icon.html" with value=pedido.metodo_pago %} {{ pedido.get_metodo_pago_display }}{% if pedido.sucursal %} · Sucursal: {{ pedido.sucursal.nombre }}{% endif %}</span>
                             <strong>Total: ${{ pedido.total }}</strong>
                         </div>
                         {% if pedido.empleado %}

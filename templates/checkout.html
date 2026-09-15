@@ -39,8 +39,26 @@
                         <tbody>
                             {% for item in grupo.items %}
                             <tr>
-                                <td>{{ item.producto.nombre }}</td>
-                                <td class="text-end">{{ item.cantidad }}</td>
+                                <td>
+                                    <div class="fw-semibold">{{ item.producto.nombre }}</div>
+                                    <small class="text-muted">${{ item.producto.precio_venta|floatformat:2 }} / ud</small>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                                        <form method="post" action="{% url 'carrito_actualizar' item.pk %}" class="d-flex align-items-center gap-1">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{% url 'carrito_checkout' %}">
+                                            <input type="number" name="cantidad" value="{{ item.cantidad }}" min="1" max="{{ item.producto.cantidad_stock }}" class="form-control form-control-sm" style="width:70px;">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary" title="Actualizar cantidad">Actualizar</button>
+                                        </form>
+                                        <form method="post" action="{% url 'carrito_quitar' item.pk %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{% url 'carrito_checkout' %}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Quitar del carrito">✕</button>
+                                        </form>
+                                    </div>
+                                    <small class="text-muted">Stock: {{ item.producto.cantidad_stock }}</small>
+                                </td>
                                 <td class="text-end">${{ item.producto.precio_venta|floatformat:2 }} x {{ item.cantidad }}</td>
                             </tr>
                             {% endfor %}
@@ -78,7 +96,16 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Método de pago</label>
-                    {{ form.metodo_pago }}
+                    <div class="d-flex flex-column gap-2" id="metodos-pago">
+                        {% for value, label in form.fields.metodo_pago.choices %}
+                        <label class="metodo-pago-card border rounded p-2 d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">
+                            <input type="radio" name="{{ form.metodo_pago.html_name }}" value="{{ value }}"
+                                   {% if forloop.first and not form.metodo_pago.value %}checked{% elif form.metodo_pago.value == value %}checked{% endif %}>
+                            <span class="d-inline-flex">{% include "includes/metodo_pago_icon.html" with value=value %}</span>
+                            <span class="fw-semibold">{{ label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Dirección de entrega</label>
@@ -97,8 +124,24 @@
     </div>
 </div>
 
+<style>
+    .metodo-pago-card { transition: border-color .15s ease, background-color .15s ease; }
+    .metodo-pago-card:hover { border-color: #adb5bd; }
+    .metodo-pago-card input[type="radio"] { accent-color: #198754; }
+    .metodo-pago-card.selected { border-color: #198754; background-color: #f1f8f2; }
+</style>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const radios = document.querySelectorAll('#metodos-pago input[type="radio"]');
+        function marcar() {
+            radios.forEach(function (r) {
+                r.closest('.metodo-pago-card').classList.toggle('selected', r.checked);
+            });
+        }
+        radios.forEach(function (r) { r.addEventListener('change', marcar); });
+        marcar();
+
         const btn = document.getElementById('btn-ubicacion');
         if (!btn) return;
         btn.addEventListener('click', function () {
