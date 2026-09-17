@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from functools import wraps
 import json
 import secrets
 
@@ -8,7 +9,8 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import F, ProtectedError, Q, Sum
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -589,7 +591,7 @@ def producto_crear(request):
         form = ProductoForm(request.POST, request.FILES)
         if form.is_valid():
             producto = form.save(commit=False)
-            producto.empresa = request.user.empresa or request.user.empresa
+            producto.empresa = request.user.empresa
             if request.user.role == "EMPLEADO":
                 producto.estado = Producto.PENDIENTE
                 producto.creado_por = request.user
@@ -629,7 +631,7 @@ def producto_editar(request, pk):
         if not solicitud:
             messages.warning(request, "Solo puedes editar productos si tu solicitud a la empresa fue aceptada.")
             return redirect("producto_list")
-        producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa)
+        producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa, creado_por=request.user)
 
     if request.method == "POST":
         form = ProductoForm(request.POST, request.FILES, instance=producto)
@@ -676,7 +678,14 @@ def producto_eliminar(request, pk):
         producto = get_object_or_404(Producto, pk=pk, creado_por=request.user)
 
     if request.method == "POST":
-        producto.delete()
+        try:
+            producto.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                f"No se puede eliminar el producto '{producto.nombre}': tiene pedidos asociados.",
+            )
+            return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
         messages.success(request, "Producto eliminado correctamente.")
         return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
     return render(request, "producto_confirm_delete.html", {"producto": producto})
@@ -1074,11 +1083,14 @@ def _notificar_producto_para_aprobacion(producto):
     if empresa_user is None:
         return
     autor = producto.creado_por.username if producto.creado_por else "Un empleado"
-    Notificacion.objects.create(
+    Notificacion.objects.update_or_create(
         usuario=empresa_user,
         tipo=Notificacion.PRODUCTO,
         titulo=f"Producto por aprobar: {producto.nombre}",
-        mensaje=f"{autor} solicitó aprobar el producto '{producto.nombre}'. Revisa el dashboard.",
+        defaults={
+            "mensaje": f"{autor} solicitó aprobar el producto '{producto.nombre}'. Revisa el dashboard.",
+            "leida": False,
+        },
     )
 
 
@@ -1538,13 +1550,6 @@ def cambiar_estado_pedido(request, pk, estado):
     messages.success(request, f"Pedido #{pedido.pk} marcado como {pedido.get_estado_display()}.")
     destino = "pedidos_empresa" if es_empresa else "pedidos_empleado"
     return redirect(destino)
-
-
-from functools import wraps
-from django.http import Http404, JsonResponse
-from django.views.decorators.http import require_POST
-
-from .models import TokenEmpresa
 
 
 def _empresa_desde_token(request):

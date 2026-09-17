@@ -1,11 +1,29 @@
 from pathlib import Path
 import os
 
+
+def _load_env_file():
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_env_file()
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-dev-key-change-me"
-DEBUG = True
-ALLOWED_HOSTS = ["*"]
+# NOTA: se ejecuta sobre Python 3.14, fuera del rango soportado oficialmente por
+# Django 5.0 (3.10-3.12). Funciona, pero conviene migrar a Python 3.12/3.13 o a
+# Django 6.0 antes de un despliegue en producción.
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key-change-me")
+DEBUG = os.getenv("DEBUG", "True").strip().lower() == "true"
+ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "*").split(",") if host.strip()]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -34,7 +52,7 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
-"OPTIONS": {
+        "OPTIONS": {
                 "context_processors": [
                     "django.template.context_processors.debug",
                     "django.template.context_processors.request",
@@ -89,19 +107,15 @@ LOGOUT_REDIRECT_URL = "login"
 # La sesión caduca al cerrar el navegador (no recuerda el usuario en la siguiente visita).
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-def _load_env_file():
-    env_file = BASE_DIR / ".env"
-    if not env_file.exists():
-        return
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-
-
-_load_env_file()
+# Endurecimiento para producción. En desarrollo (DEBUG=True) se mantiene relajado.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # --- Configuración de correo -------------------------------------------------
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")

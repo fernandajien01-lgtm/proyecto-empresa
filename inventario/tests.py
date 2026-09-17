@@ -311,6 +311,7 @@ class ProductoEditPermissionsTests(TestCase):
             precio_venta=80,
             cantidad_stock=10,
             stock_minimo=2,
+            creado_por=empleado,
         )
         SolicitudEmpleado.objects.create(
             empleado=empleado,
@@ -1118,6 +1119,56 @@ class ProductoAprobacionTests(TestCase):
         self.assertEqual(response.status_code, 302)
         producto.refresh_from_db()
         self.assertEqual(producto.estado, Producto.APROBADO)
+
+    def test_empleado_no_edita_producto_de_otro_empleado(self):
+        from django.http import Http404
+        from django.test import RequestFactory
+        from inventario.views import producto_editar
+
+        otro_empleado = User.objects.create_user(
+            username="emp_aprob_2", password="testpass", role="EMPLEADO"
+        )
+        otro_empleado.empresa = self.empresa
+        otro_empleado.save()
+        SolicitudEmpleado.objects.create(
+            empleado=otro_empleado, empresa=self.empresa, estado=SolicitudEmpleado.ACEPTADA
+        )
+        producto = self._producto(creador=otro_empleado, nombre="De otro empleado")
+        rf = RequestFactory()
+        request = rf.get(f"/producto/{producto.pk}/editar/")
+        request.user = self.empleado
+        with self.assertRaises(Http404):
+            producto_editar(request, pk=producto.pk)
+
+    def test_doble_edicion_genera_una_sola_notificacion(self):
+        producto = self._producto(estado=Producto.APROBADO, creador=self.empleado, nombre="Dup")
+        self.client.login(username="emp_aprob", password="testpass")
+        data = self._data_crear()
+        data["nombre"] = "Dup"
+        self.client.post(reverse("producto_editar", args=[producto.id]), data)
+        self.client.post(reverse("producto_editar", args=[producto.id]), data)
+        self.assertEqual(
+            Notificacion.objects.filter(
+                usuario=self.empresa_user,
+                tipo=Notificacion.PRODUCTO,
+                titulo="Producto por aprobar: Dup",
+            ).count(),
+            1,
+        )
+
+    def test_no_se_elimina_producto_con_pedidos(self):
+        producto = self._producto(estado=Producto.APROBADO, creador=self.empleado, nombre="ConPedido")
+        pedido = Pedido.objects.create(
+            cliente=self.cliente,
+            empresa=self.empresa,
+            metodo_pago=Pedido.EFECTIVO,
+            total=10,
+        )
+        PedidoItem.objects.create(pedido=pedido, producto=producto, cantidad=1, precio=10)
+        self.client.login(username="empresa_aprob", password="testpass")
+        response = self.client.post(reverse("producto_eliminar", args=[producto.id]))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Producto.objects.filter(pk=producto.pk).exists())
 
     def test_carrito_agregar_producto_pendiente_rechazado(self):
         from django.http import Http404
