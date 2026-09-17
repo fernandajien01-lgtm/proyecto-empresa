@@ -1,0 +1,40 @@
+{% if value == "EFECTIVO" %}
+<svg viewBox="0 0 64 64" width="56" height="56" fill="none" role="img" aria-hidden="true">
+    <defs><linearGradient id="pg-efectivo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22c55e"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs>
+    <rect x="4" y="13" width="56" height="38" rx="8" fill="#dcfce7"/>
+    <rect x="4" y="13" width="56" height="38" rx="8" stroke="#16a34a" stroke-width="2.5"/>
+    <circle cx="32" cy="32" r="9" stroke="#16a34a" stroke-width="2.5"/>
+    <path d="M32 25v14M28 28.2c0-1.9 1.8-3.2 4-3.2s4 1.4 4 3.2-1.8 3-4 3-4 1.2-4 3.2 1.8 3.2 4 3.2 4-1.3 4-3.2" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round"/>
+</svg>
+{% elif value == "TRANSFERENCIA" %}
+<svg viewBox="0 0 64 64" width="56" height="56" fill="none" role="img" aria-hidden="true">
+    <defs><linearGradient id="pg-transferencia" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs>
+    <path d="M6 30h52v26H6z" fill="#eff6ff"/>
+    <path d="M32 8L8 26h48z" fill="url(#pg-transferencia)"/>
+    <rect x="12" y="30" width="10" height="26" rx="2" fill="#bfdbfe"/>
+    <rect x="27" y="34" width="10" height="22" rx="2" fill="#bfdbfe"/>
+    <rect x="42" y="30" width="10" height="26" rx="2" fill="#bfdbfe"/>
+    <path d="M17 14l-7 14h20z" fill="#eff6ff"/>
+    <path d="M47 14l-7 14h20z" fill="#eff6ff"/>
+    <circle cx="50" cy="16" r="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <path d="M47 16h6M50 13v6" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+</svg>
+{% elif value == "TARJETA" %}
+<svg viewBox="0 0 64 64" width="56" height="56" fill="none" role="img" aria-hidden="true">
+    <defs><linearGradient id="pg-tarjeta" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+    <rect x="4" y="16" width="56" height="36" rx="7" fill="#f5f3ff"/>
+    <rect x="4" y="16" width="56" height="36" rx="7" stroke="#7c3aed" stroke-width="2.5"/>
+    <rect x="10" y="22" width="22" height="11" rx="3" fill="url(#pg-tarjeta)"/>
+    <path d="M13 35h16M13 40h9" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+    <path d="M48 30a6 6 0 0 1-6 6M44 26a10 10 0 0 1-10 10" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round"/>
+</svg>
+{% else %}
+<svg viewBox="0 0 64 64" width="56" height="56" fill="none" role="img" aria-hidden="true">
+    <defs><linearGradient id="pg-movil" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fb923c"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs>
+    <rect x="17" y="7" width="30" height="50" rx="7" fill="#fff7ed"/>
+    <rect x="17" y="7" width="30" height="50" rx="7" stroke="#ea580c" stroke-width="2.5"/>
+    <rect x="20" y="13" width="24" height="33" rx="4" fill="#fed7aa"/>
+    <circle cx="32" cy="52" r="2.4" stroke="#ea580c" stroke-width="2"/>
+    <path d="M38 18l-9 12h6.5l-4.5 10 11-11h-6.5l4-9z" fill="url(#pg-movil)"/>
+</svg>
+{% endif %}

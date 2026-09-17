@@ -1,0 +1,302 @@
+{% extends 'base.html' %}
+
+{% block title %}Supervisión de pedidos{% endblock %}
+
+{% block content %}
+<style>
+    .orders-title {
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .kpi-tile {
+        border-radius: 1rem;
+        border: 0;
+    }
+    .kpi-tile-amber {
+        background: linear-gradient(135deg, #f59e0b, #fbbf24);
+        color: #78350f;
+    }
+    .kpi-tile-indigo {
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        color: #eef2ff;
+    }
+    .kpi-tile-sky {
+        background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+        color: #f0f9ff;
+    }
+    .kpi-tile-violet {
+        background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+        color: #f5f3ff;
+    }
+    html[data-theme="dark"] .kpi-tile {
+        box-shadow: 0 12px 30px rgba(2, 6, 23, .5);
+    }
+    .ventas-title {
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .table-card {
+        border-radius: 1rem;
+    }
+    .state-badge {
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .03em;
+    }
+    .filter-wrap {
+        position: relative;
+    }
+    .filter-wrap .filter-icon {
+        position: absolute;
+        top: 50%;
+        left: .9rem;
+        transform: translateY(-50%);
+        color: #64748b;
+        pointer-events: none;
+    }
+    .filter-wrap .form-control {
+        padding-left: 2.5rem;
+        border-radius: 999px;
+    }
+    .state-filter {
+        font-size: .82rem;
+        font-weight: 600;
+        border-radius: 999px;
+        transition: background .15s ease, color .15s ease;
+    }
+    .state-filter:hover {
+        background: #f1f5f9;
+    }
+    .active-filter {
+        background: #0ea5e9 !important;
+        color: #fff !important;
+        border-color: #0ea5e9 !important;
+    }
+    html[data-theme="dark"] .table-card {
+        background: #0f172a;
+        border-color: #334155;
+    }
+    html[data-theme="dark"] .state-filter:hover {
+        background: #334155;
+    }
+    .hidden-row {
+        display: none !important;
+    }
+    @keyframes fadeSlide {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: none; }
+    }
+    .fade-slide {
+        animation: fadeSlide .4s ease both;
+    }
+    .kpi-num[data-count] {
+        font-variant-numeric: tabular-nums;
+    }
+</style>
+
+<div class="mb-4 fade-slide">
+    <h2 class="ventas-title fw-bold mb-1">Supervisión de pedidos · {{ user.empresa.nombre }}</h2>
+    <p class="text-muted mb-0">Vigila todo el trámite: quién presenta el pedido, quién lo procesa y su estado.</p>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="kpi-tile p-4 kpi-tile-sky shadow-sm h-100">
+            <span class="d-flex align-items-center gap-3">
+                <span class="kpi-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span>
+                <span class="d-flex flex-column">
+                    <span class="kpi-num" data-count="{{ pedidos|length }}">0</span>
+                    <span class="kpi-label">Total de pedidos</span>
+                </span>
+            </span>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-tile p-4 kpi-tile-indigo shadow-sm h-100">
+            <span class="d-flex align-items-center gap-3">
+                <span class="kpi-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><polyline points="8 12 12 16 16 12"></polyline><line x1="12" y1="8" x2="12" y2="16"></line></svg></span>
+                <span class="d-flex flex-column">
+                    <span class="kpi-num" data-count="{{ pendientes }}">0</span>
+                    <span class="kpi-label">Pendientes</span>
+                </span>
+            </span>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-tile p-4 kpi-tile-amber shadow-sm h-100">
+            <span class="d-flex align-items-center gap-3">
+                <span class="kpi-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></span>
+                <span class="d-flex flex-column">
+                    <span class="kpi-num" data-count="{{ en_proceso }}">0</span>
+                    <span class="kpi-label">En proceso</span>
+                </span>
+            </span>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-tile p-4 kpi-tile-violet shadow-sm h-100">
+            <span class="d-flex align-items-center gap-3">
+                <span class="kpi-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></span>
+                <span class="d-flex flex-column">
+                    <span class="kpi-num" data-count="{{ cancelados }}">0</span>
+                    <span class="kpi-label">Cancelados</span>
+                </span>
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="card table-card shadow-sm border-0">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h5 class="fw-bold mb-0">Pedidos de tu empresa</h5>
+            <span class="d-flex gap-2 flex-wrap align-items-center">
+                <div class="filter-wrap" style="max-width:250px; width:100%;">
+                    <span class="filter-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+                    <input type="search" id="buscarPedido" class="form-control form-control-sm" placeholder="Buscar por cliente o empleado..." aria-label="Buscar pedidos">
+                </div>
+                <div class="d-flex gap-1 flex-wrap" id="filtroEstado">
+                    <button type="button" class="btn btn-sm state-filter btn-light border active-filter" data-estado="TODOS">Todos</button>
+                    <button type="button" class="btn btn-sm state-filter btn-light border" data-estado="PENDIENTE">Pendientes</button>
+                    <button type="button" class="btn btn-sm state-filter btn-light border" data-estado="PROCESADO">Procesados</button>
+                    <button type="button" class="btn btn-sm state-filter btn-light border" data-estado="ENTREGADO">Entregados</button>
+                    <button type="button" class="btn btn-sm state-filter btn-light border" data-estado="CANCELADO">Cancelados</button>
+                </div>
+            </span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Pedido</th>
+                        <th>Cliente</th>
+                        <th>Empleado responsable</th>
+                        <th>Pago</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoPedidos">
+                    {% for pedido in pedidos %}
+                    <tr data-estado="{{ pedido.estado }}" data-busqueda="{{ pedido.id }} {{ pedido.cliente.first_name|lower }} {{ pedido.cliente.last_name|lower }} {{ pedido.cliente.username|lower }} {% if pedido.empleado %}{{ pedido.empleado.username|lower }}{% endif %}">
+                        <td>
+                            <a href="{% url 'pedido_detalle' pedido.id %}" class="fw-semibold text-decoration-none">#{{ pedido.id }}</a>
+                            <div class="small text-muted">{% include 'includes/metodo_pago_icon.html' with value=pedido.metodo_pago %}{{ pedido.fecha_creacion|date:'d/m/y H:i' }}</div>
+                        </td>
+                        <td>
+                            <span class="d-flex align-items-center gap-2">
+                                {% if pedido.cliente.profile_image %}
+                                    <img src="{{ pedido.cliente.profile_image.url }}" alt="avatar" class="rounded-circle" style="width:30px; height:30px; object-fit:cover;">
+                                {% else %}
+                                    <span class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width:30px; height:30px;">{{ pedido.cliente.username|slice:":1"|upper }}</span>
+                                {% endif %}
+                                <span>
+                                    {{ pedido.cliente.first_name }} {{ pedido.cliente.last_name }}
+                                    <div class="small text-muted">@{{ pedido.cliente.username }}</div>
+                                </span>
+                            </span>
+                        </td>
+                        <td>
+                            {% if pedido.empleado %}
+                                <span class="d-flex align-items-center gap-2">
+                                    {% if pedido.empleado.profile_image %}
+                                        <img src="{{ pedido.empleado.profile_image.url }}" alt="avatar" class="rounded-circle" style="width:26px; height:26px; object-fit:cover;">
+                                    {% else %}
+                                        <span class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center" style="width:26px; height:26px;">{{ pedido.empleado.username|slice:":1"|upper }}</span>
+                                    {% endif %}
+                                    {{ pedido.empleado.username }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">Sin asignar</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="d-inline-flex align-items-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="6" x2="12" y2="12"></line><line x1="16" y1="12" x2="16" y2="12"></line></svg>{{ pedido.metodo_pago|lower|capfirst }}</span>
+                        </td>
+                        <td><span class="fw-bold">${{ pedido.total }}</span></td>
+                        <td>
+                            <span class="badge state-badge {% if pedido.estado == 'PENDIENTE' %}bg-warning text-dark{% elif pedido.estado == 'PROCESADO' %}bg-primary{% elif pedido.estado == 'ENTREGADO' %}bg-success{% else %}bg-danger{% endif %} rounded-pill">{{ pedido.get_estado_display }}</span>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="{% url 'pedido_detalle' pedido.id %}" class="btn btn-sm btn-outline-primary">Ver / Responder</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr id="filaVacia">
+                        <td colspan="7" class="text-center text-muted py-4">Aún no hay pedidos para tu empresa.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var filas = Array.prototype.slice.call(document.querySelectorAll('#cuerpoPedidos tr[data-estado]'));
+    var vacia = document.getElementById('filaVacia');
+    var botones = Array.prototype.slice.call(document.querySelectorAll('#filtroEstado .state-filter'));
+    var campoBusqueda = document.getElementById('buscarPedido');
+    var estadoActivo = 'TODOS';
+    var filtroTxt = '';
+
+    function aplicarFiltro() {
+        var visibles = 0;
+        filas.forEach(function (fila) {
+            var okEstado = estadoActivo === 'TODOS' || fila.dataset.estado === estadoActivo;
+            var okTxt = !filtroTxt || (fila.dataset.busqueda || '').indexOf(filtroTxt) !== -1;
+            var mostrar = okEstado && okTxt;
+            fila.classList.toggle('hidden-row', !mostrar);
+            if (mostrar) visibles++;
+        });
+        if (vacia) {
+            var mostrarVacia = visibles === 0;
+            vacia.style.display = mostrarVacia ? '' : 'none';
+            if (mostrarVacia) {
+                vacia.querySelector('td').textContent = 'No se encontraron pedidos para los filtros aplicados.';
+            }
+        }
+    }
+
+    botones.forEach(function (b) {
+        b.addEventListener('click', function () {
+            botones.forEach(function (x) { x.classList.remove('active-filter'); x.classList.add('btn-light', 'border'); });
+            b.classList.add('active-filter');
+            b.classList.remove('btn-light', 'border');
+            estadoActivo = b.dataset.estado;
+            aplicarFiltro();
+        });
+    });
+
+    if (campoBusqueda) {
+        campoBusqueda.addEventListener('input', function () {
+            filtroTxt = this.value.trim().toLowerCase();
+            aplicarFiltro();
+        });
+    }
+
+    var nums = Array.prototype.slice.call(document.querySelectorAll('.kpi-num[data-count]'));
+    nums.forEach(function (el) {
+        var objetivo = parseInt(el.dataset.count, 10) || 0;
+        var durar = 700;
+        var inicio = null;
+        function paso(ts) {
+            if (!inicio) inicio = ts;
+            var prog = Math.min((ts - inicio) / durar, 1);
+            var raiz = 1 - Math.pow(1 - prog, 3);
+            el.textContent = Math.round(raiz * objetivo);
+            if (prog < 1) requestAnimationFrame(paso);
+        }
+        requestAnimationFrame(paso);
+    });
+}());
+</script>
+{% endblock %}

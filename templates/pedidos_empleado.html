@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+
+{% block title %}Pedidos por atender{% endblock %}
+
+{% block content %}
+<style>
+    .orders-title {
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .order-card {
+        border-radius: 1rem;
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .order-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(56, 189, 248, .14);
+    }
+    html[data-theme="dark"] .order-card {
+        background: #0f172a;
+        border-color: #334155;
+    }
+    .dist-badge {
+        background: rgba(14, 165, 233, .12);
+        color: #0284c7;
+        border-radius: 999px;
+        padding: .2rem .65rem;
+        font-size: .78rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    html[data-theme="dark"] .dist-badge {
+        color: #7dd3fc;
+        background: rgba(14, 165, 233, .18);
+    }
+    .prog-cargo {
+        height: 8px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        overflow: hidden;
+    }
+    html[data-theme="dark"] .prog-cargo {
+        background: #334155;
+    }
+    .prog-cargo .bar {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        transition: width .3s ease;
+    }
+</style>
+
+<div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-3">
+    <div>
+        <h2 class="orders-title fw-bold mb-1">Pedidos de {{ user.empresa.nombre }}</h2>
+        <p class="text-muted mb-0">Toma los pedidos cerca de ti y procésalos. Máximo {{ limite }} a tu cargo.</p>
+    </div>
+    <div class="card shadow-sm border-0 order-card p-3" style="min-width: 240px;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small fw-bold">Mis pedidos a cargo</span>
+            <span class="fw-bold">{{ activos }}/{{ limite }}</span>
+        </div>
+        <div class="prog-cargo">
+            <div class="bar" style="width: {% widthratio activos limite 100 %}%"></div>
+        </div>
+        {% if al_limite %}
+            <div class="small text-danger mt-2">Llegaste al límite: termina o libera uno antes de tomar otro.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% if not tiene_ubicacion %}
+    <div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="flex-grow-1">
+            <strong>Guarda tu ubicación</strong> para ver primero los pedidos cerca de ti.
+            También puedes ingresar tus coordenadas a mano. Sin ellas verás todos los pedidos disponibles.
+        </div>
+        <form method="post" action="{% url 'guardar_ubicacion' %}" class="d-flex flex-wrap gap-2 align-items-center" id="form-ubicacion">
+            {% csrf_token %}
+            <input type="text" name="latitud" class="form-control form-control-sm" style="width: 150px;" placeholder="Latitud" required>
+            <input type="text" name="longitud" class="form-control form-control-sm" style="width: 150px;" placeholder="Longitud" required>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-geo">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                Usar mi ubicación actual
+            </button>
+            <span class="small text-muted">o</span>
+            <button type="submit" class="btn btn-outline-primary btn-sm">Guardar</button>
+        </form>
+        <div id="geo-msg" class="small text-muted w-100"></div>
+    </div>
+{% else %}
+    <div class="alert alert-info py-2 px-3 small">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        En esta sección se marca <strong>cerca de ti</strong> todo pedido a menos de <strong>{{ radio_km }} km</strong> de tu ubicación.
+    </div>
+{% endif %}
+
+<h4 class="mt-4 mb-3 fw-bold">Disponibles cerca de ti</h4>
+{% if cerca %}
+    <div class="d-flex flex-column gap-3">
+        {% for pedido in cerca %}
+            {% include "includes/pedido_disponible_card.html" with pedido=pedido cerca=True %}
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info mb-0">No hay pedidos disponibles dentro de tu radio ni tomados por otro empleado.</div>
+{% endif %}
+
+<h4 class="mt-5 mb-3 fw-bold">Otros disponibles{% if tiene_ubicacion %} (fuera de tu radio o sin coordenadas){% endif %}</h4>
+{% if otros %}
+    <div class="d-flex flex-column gap-3">
+        {% for pedido in otros %}
+            {% include "includes/pedido_disponible_card.html" with pedido=pedido cerca=False %}
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info mb-0">No hay otros pedidos disponibles por el momento.</div>
+{% endif %}
+
+<h4 class="mt-5 mb-3 fw-bold">Mis pedidos a cargo</h4>
+{% if mis_pedidos %}
+    <div class="d-flex flex-column gap-3">
+        {% for pedido in mis_pedidos %}
+            <div class="card order-card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <strong>Pedido #{{ pedido.id }}</strong> · {{ pedido.cliente.first_name }} {{ pedido.cliente.last_name }} (@{{ pedido.cliente.username }})
+                            <div class="small text-muted">
+                                {{ pedido.fecha_creacion|date:"d/m/Y H:i" }} · Total: ${{ pedido.total }} · Estado: <span class="badge bg-primary">{{ pedido.get_estado_display }}</span>
+                            </div>
+                            {% if pedido.latitud and pedido.longitud %}
+                                <div class="small text-muted mt-1">Ubicación del cliente: {{ pedido.latitud }}, {{ pedido.longitud }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <a href="{% url 'pedido_detalle' pedido.id %}" class="btn btn-sm btn-outline-primary">Ver / Responder</a>
+                            {% if pedido.estado == "PENDIENTE" %}
+                                <form method="post" action="{% url 'procesar_pedido' pedido.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success">Procesar compra</button>
+                                </form>
+                            {% endif %}
+                            <form method="post" action="{% url 'cambiar_estado_pedido' pedido.id 'ENTREGADO' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-success">Marcar entregado</button>
+                            </form>
+                            <form method="post" action="{% url 'cambiar_estado_pedido' pedido.id 'CANCELADO' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button>
+                            </form>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-bs-toggle="modal" data-bs-target="#liberarModal"
+                                    data-url="{% url 'liberar_pedido' pedido.id %}"
+                                    data-pedido="{{ pedido.id }}">Liberar</button>
+                        </div>
+                    </div>
+                    <div class="small mt-2">
+                        {% for item in pedido.items.all %}
+                            <div>{{ item.cantidad }}x {{ item.producto.nombre }} · Stock disponible: {{ item.producto.cantidad_stock }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info mb-0">Aún no tienes pedidos a cargo. Toma uno de la lista para atenderlo.</div>
+{% endif %}
+
+<div class="modal fade" id="liberarModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" id="liberarForm">
+            {% csrf_token %}
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Liberar pedido</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Al liberar el pedido <strong id="liberarPedidoId"></strong> volverá a la lista disponible y se notificará a la empresa y al cliente, quienes verán el motivo.</p>
+                    <label for="id_motivo" class="form-label fw-bold">Motivo</label>
+                    <textarea name="motivo" id="id_motivo" rows="3" class="form-control" required></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Liberar pedido</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('liberarModal');
+    if (modal) {
+        modal.addEventListener('show.bs.modal', function (ev) {
+            var boton = ev.relatedTarget;
+            if (!boton) return;
+            var form = document.getElementById('liberarForm');
+            var id = document.getElementById('liberarPedidoId');
+            if (form) form.action = boton.getAttribute('data-url');
+            if (id) id.textContent = '#' + boton.getAttribute('data-pedido');
+        });
+    }
+    var btnGeo = document.getElementById('btn-geo');
+    if (btnGeo) {
+        btnGeo.addEventListener('click', function () {
+            var msg = document.getElementById('geo-msg');
+            if (!('geolocation' in navigator)) {
+                msg.textContent = 'Tu navegador no permite conocer tu ubicación; escríbela manualmente.';
+                return;
+            }
+            btnGeo.disabled = true;
+            msg.textContent = 'Pidiendo permiso al navegador para conocer tu ubicación...';
+            navigator.geolocation.getCurrentPosition(
+                function (pos) {
+                    var form = btnGeo.closest('form');
+                    form.querySelector('[name="latitud"]').value = pos.coords.latitude.toFixed(6);
+                    form.querySelector('[name="longitud"]').value = pos.coords.longitude.toFixed(6);
+                    msg.textContent = 'Ubicación capturada. Guardando automáticamente...';
+                    form.submit();
+                },
+                function (err) {
+                    var texto = 'No se pudo obtener tu ubicación; escríbela manualmente.';
+                    if (err && err.code === 1) {
+                        texto = 'Bloqueaste el acceso a tu ubicación. Permítele al navegador usarla o escríbela manualmente.';
+                    }
+                    msg.textContent = texto;
+                    btnGeo.disabled = false;
+                },
+                { enableHighAccuracy: true, timeout: 9000 }
+            );
+        });
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestionar categorías{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2 class="fw-bold mb-1">Categorías</h2>
+        <p class="text-muted mb-0">Crea o edita categorías para organizar tus productos.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h5 class="mb-3">Nueva categoría</h5>
+                <form method="post">
+                    {% csrf_token %}
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{{ field.errors|join:', ' }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary-custom">Crear categoría</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h5 class="mb-3">Categorías existentes ({{ categorias|length }})</h5>
+                <div class="list-group">
+                    {% for cat in categorias %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ cat.nombre }}</strong>
+                                {% if cat.descripcion %}
+                                    <small class="text-muted d-block">{{ cat.descripcion|truncatechars:80 }}</small>
+                                {% endif %}
+                            </div>
+                            <a href="{% url 'categoria_editar' cat.id %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                        </div>
+                    {% empty %}
+                        <p class="text-muted mb-0">Aún no hay categorías.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+<div class="metodo-pago-grid">
+    {% for group in widget.optgroups %}
+        {% if group.0 %}
+            <div class="metodo-pago-group">{{ group.0 }}</div>
+        {% endif %}
+        {% for option in group.1 %}
+            {% include option.template_name with widget=option %}
+        {% endfor %}
+    {% endfor %}
+</div>

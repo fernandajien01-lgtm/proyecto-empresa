@@ -2,10 +2,14 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .models import (
+    CarritoItem,
     Categoria,
     CustomUser,
     Empresa,
     Movimiento,
+    Notificacion,
+    Pedido,
+    PedidoItem,
     Producto,
     Proveedor,
     ReaccionProducto,
@@ -13,6 +17,7 @@ from .models import (
     Resena,
     SolicitudEmpleado,
     Sugerencia,
+    TokenEmpresa,
 )
 
 
@@ -21,11 +26,11 @@ class CustomUserAdmin(UserAdmin):
     list_display = ("username", "email", "role", "empresa", "cedula", "telefono", "residencia")
     fieldsets = UserAdmin.fieldsets + (
         ("Rol y empresa", {"fields": ("role", "empresa")}),
-        ("Datos del empleado", {"fields": ("cedula", "telefono", "residencia", "fecha_nacimiento", "profile_image")}),
+        ("Datos del empleado", {"fields": ("cedula", "telefono", "residencia", "fecha_nacimiento", "profile_image", "latitud", "longitud")}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
         ("Rol y empresa", {"fields": ("role", "empresa")}),
-        ("Datos del empleado", {"fields": ("cedula", "telefono", "residencia", "fecha_nacimiento", "profile_image")}),
+        ("Datos del empleado", {"fields": ("cedula", "telefono", "residencia", "fecha_nacimiento", "profile_image", "latitud", "longitud")}),
     )
 
 
@@ -78,3 +83,37 @@ class ReaccionResenaAdmin(admin.ModelAdmin):
 @admin.register(ReaccionProducto)
 class ReaccionProductoAdmin(admin.ModelAdmin):
     list_display = ("producto", "usuario", "tipo")
+
+
+@admin.register(CarritoItem)
+class CarritoItemAdmin(admin.ModelAdmin):
+    list_display = ("usuario", "producto", "cantidad")
+    search_fields = ("usuario__username", "producto__nombre")
+
+
+@admin.register(Pedido)
+class PedidoAdmin(admin.ModelAdmin):
+    list_display = ("id", "cliente", "empresa", "empleado", "metodo_pago", "total", "estado", "fecha_creacion")
+    list_filter = ("estado", "metodo_pago")
+    search_fields = ("cliente__username", "empresa__nombre")
+    readonly_fields = ("latitud", "longitud")
+
+
+@admin.register(PedidoItem)
+class PedidoItemAdmin(admin.ModelAdmin):
+    list_display = ("pedido", "producto", "cantidad", "precio")
+    search_fields = ("pedido_id", "producto__nombre")
+
+
+@admin.register(Notificacion)
+class NotificacionAdmin(admin.ModelAdmin):
+    list_display = ("usuario", "tipo", "titulo", "pedido", "leida", "fecha_creacion")
+    list_filter = ("tipo", "leida")
+
+
+@admin.register(TokenEmpresa)
+class TokenEmpresaAdmin(admin.ModelAdmin):
+    list_display = ("usuario", "token", "created", "updated")
+    list_filter = ("created", "updated")
+    search_fields = ("token", "usuario__username", "descripcion")
+    readonly_fields = ("token", "created", "updated")

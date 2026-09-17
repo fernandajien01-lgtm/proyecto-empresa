@@ -3,9 +3,121 @@
 {% block title %}Solicitudes de empleados{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm border-0">
+<style>
+    .sol-title {
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .table-card {
+        border-radius: 1rem;
+    }
+    .state-badge {
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .03em;
+    }
+    .filter-wrap {
+        position: relative;
+    }
+    .filter-wrap .filter-icon {
+        position: absolute;
+        top: 50%;
+        left: .9rem;
+        transform: translateY(-50%);
+        color: #64748b;
+        pointer-events: none;
+    }
+    .filter-wrap .form-control {
+        padding-left: 2.5rem;
+        border-radius: 999px;
+    }
+    .state-filter {
+        font-size: .82rem;
+        font-weight: 600;
+        border-radius: 999px;
+        transition: background .15s ease, color .15s ease;
+    }
+    .state-filter:hover {
+        background: #f1f5f9;
+    }
+    html[data-theme="dark"] .state-filter:hover {
+        background: #334155;
+    }
+    .req-row {
+        transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .req-row:hover {
+        transform: translateY(-1px);
+    }
+    .hidden-row {
+        display: none !important;
+    }
+    .kpi-num[data-count] {
+        font-variant-numeric: tabular-nums;
+    }
+    @keyframes fadeSlide {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: none; }
+    }
+    .fade-slide {
+        animation: fadeSlide .4s ease both;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4 fade-slide">
+    <div>
+        <h2 class="sol-title fw-bold mb-1">Solicitudes de empleados</h2>
+        <p class="text-muted mb-0">Revisa quién quiere unirse a tu empresa y gestiona las peticiones pendientes.</p>
+    </div>
+    <span class="d-flex gap-2" id="filtroEstado">
+        <button type="button" class="btn state-filter btn-light border active-filter" data-estado="TODOS">Todos</button>
+        <button type="button" class="btn state-filter btn-light border" data-estado="PENDIENTE">Pendientes</button>
+        <button type="button" class="btn state-filter btn-light border" data-estado="ACEPTADA">Aceptadas</button>
+        <button type="button" class="btn state-filter btn-light border" data-estado="RECHAZADA">Rechazadas</button>
+    </span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="kpi-tile kpi-tile-amber h-100">
+            <span class="kpi-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
+            <span class="d-flex flex-column">
+                <span class="kpi-num" data-count="{{ solicitudes|length }}">0</span>
+                <span class="kpi-label">Total de solicitudes</span>
+            </span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-tile kpi-tile-indigo h-100">
+            <span class="kpi-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><polyline points="8 12 12 16 16 12"></polyline><line x1="12" y1="8" x2="12" y2="16"></line></svg></span>
+            <span class="d-flex flex-column">
+                <span class="kpi-num" data-count="{{ pendientes }}">0</span>
+                <span class="kpi-label">Pendientes</span>
+            </span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="kpi-tile kpi-tile-violet h-100">
+            <span class="kpi-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            <span class="d-flex flex-column">
+                <span class="kpi-num" data-count="{{ resueltas }}">0</span>
+                <span class="kpi-label">Resueltas</span>
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="card table-card shadow-sm border-0">
     <div class="card-body p-4">
-        <h2 class="mb-3">Solicitudes de empleados</h2>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h5 class="fw-bold mb-0">Todas las solicitudes</h5>
+            <div class="filter-wrap" style="max-width:280px; width:100%;">
+                <span class="filter-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+                <input type="search" id="buscarSolicitud" class="form-control form-control-sm" placeholder="Buscar por empleado o empresa..." aria-label="Buscar solicitudes">
+            </div>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle">
                 <thead>
@@ -17,28 +129,39 @@
                         <th>Acción</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tablaSolicitudes">
                     {% for solicitud in solicitudes %}
-                    <tr>
-                        <td>{{ solicitud.empleado.username }}</td>
+                    <tr class="req-row" data-busqueda="{{ solicitud.empleado.username|lower }} | {{ solicitud.empresa.nombre|lower }} | {{ solicitud.estado|lower }}" data-estado="{{ solicitud.estado }}">
+                        <td>
+                            <span class="d-flex align-items-center gap-2">
+                                {% if solicitud.empleado.profile_image %}
+                                    <img src="{{ solicitud.empleado.profile_image.url }}" alt="avatar" class="rounded-circle" style="width:30px; height:30px; object-fit:cover;">
+                                {% else %}
+                                    <span class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width:30px; height:30px;">{{ solicitud.empleado.username|slice:":1"|upper }}</span>
+                                {% endif %}
+                                <span>{{ solicitud.empleado.username }}</span>
+                            </span>
+                        </td>
                         <td>{{ solicitud.empresa.nombre }}</td>
                         <td>
-                            <span class="badge {% if solicitud.estado == 'PENDIENTE' %}bg-warning{% elif solicitud.estado == 'ACEPTADA' %}bg-success{% else %}bg-danger{% endif %}">
+                            <span class="badge state-badge {% if solicitud.estado == 'PENDIENTE' %}bg-warning text-dark{% elif solicitud.estado == 'ACEPTADA' %}bg-success{% else %}bg-danger{% endif %} rounded-pill">
                                 {{ solicitud.estado }}
                             </span>
                         </td>
                         <td>{{ solicitud.fecha_creacion|date:'d/m/Y H:i' }}</td>
                         <td>
                             {% if solicitud.estado == 'PENDIENTE' %}
-                                <a href="{% url 'confirmar_aceptar_solicitud' solicitud.pk %}" class="btn btn-success btn-sm">Aceptar</a>
-                                <a href="{% url 'actualizar_solicitud' solicitud.pk 'RECHAZADA' %}" class="btn btn-outline-danger btn-sm">Rechazar</a>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="{% url 'confirmar_aceptar_solicitud' solicitud.pk %}" class="btn btn-sm btn-success">Aceptar</a>
+                                <a href="{% url 'actualizar_solicitud' solicitud.pk 'RECHAZADA' %}" class="btn btn-sm btn-outline-danger">Rechazar</a>
+                            </div>
                             {% else %}
-                                <span class="text-muted">Sin acciones</span>
+                                <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% empty %}
-                    <tr>
+                    <tr id="filaVacia">
                         <td colspan="5" class="text-center text-muted">No hay solicitudes para revisar.</td>
                     </tr>
                     {% endfor %}
@@ -47,4 +170,66 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    var filas = Array.prototype.slice.call(document.querySelectorAll('#tablaSolicitudes tr.req-row'));
+    var vacia = document.getElementById('filaVacia');
+    var botones = Array.prototype.slice.call(document.querySelectorAll('#filtroEstado .state-filter'));
+    var bMujeres = Array.prototype.slice.call(document.querySelectorAll('#filtroEstado .state-filter'));
+    var campoBusqueda = document.getElementById('buscarSolicitud');
+    var estadoActivo = 'TODOS';
+    var filtroTxt = '';
+
+    function aplicarFiltro() {
+        var visibles = 0;
+        filas.forEach(function (fila) {
+            var okEstado = estadoActivo === 'TODOS' || fila.dataset.estado === estadoActivo;
+            var okTxt = !filtroTxt || (fila.dataset.busqueda || '').indexOf(filtroTxt) !== -1;
+            var mostrar = okEstado && okTxt;
+            fila.classList.toggle('hidden-row', !mostrar);
+            if (mostrar) visibles++;
+        });
+        if (vacia) {
+            var mostrarVacia = visibles === 0;
+            vacia.style.display = mostrarVacia ? '' : 'none';
+            if (mostrarVacia) {
+                vacia.querySelector('td').textContent = 'No se encontraron solicitudes para los filtros aplicados.';
+            }
+        }
+    }
+
+    botones.forEach(function (b) {
+        b.addEventListener('click', function () {
+            botones.forEach(function (x) { x.classList.remove('active-filter'); x.classList.add('btn-light', 'border'); });
+            b.classList.add('active-filter');
+            b.classList.remove('btn-light', 'border');
+            estadoActivo = b.dataset.estado;
+            aplicarFiltro();
+        });
+    });
+
+    if (campoBusqueda) {
+        campoBusqueda.addEventListener('input', function () {
+            filtroTxt = this.value.trim().toLowerCase();
+            aplicarFiltro();
+        });
+    }
+
+    var nums = Array.prototype.slice.call(document.querySelectorAll('.kpi-num[data-count]'));
+    nums.forEach(function (el) {
+        var objetivo = parseInt(el.dataset.count, 10) || 0;
+        var durar = 700;
+        var inicio = null;
+        function paso(ts) {
+            if (!inicio) inicio = ts;
+            var prog = Math.min((ts - inicio) / durar, 1);
+            var raiz = 1 - Math.pow(1 - prog, 3);
+            el.textContent = Math.round(raiz * objetivo);
+            if (prog < 1) requestAnimationFrame(paso);
+        }
+        requestAnimationFrame(paso);
+    });
+}());
+</script>
 {% endblock %}

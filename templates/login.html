@@ -28,7 +28,7 @@
                         <div class="input-group">
                             {{ form.password }}
                             <button type="button" class="btn btn-outline-secondary toggle-password" data-target="id_password" aria-label="Mostrar u ocultar contraseña">
-                                <span>◉</span>
+                                <i class="bi bi-eye"></i>
                             </button>
                         </div>
                         {% if form.password.errors %}
@@ -63,7 +63,7 @@
                 target.removeAttribute('readonly');
                 const isPassword = target.type === 'password';
                 target.type = isPassword ? 'text' : 'password';
-                this.innerHTML = isPassword ? '<span>◌</span>' : '<span>◉</span>';
+                this.innerHTML = isPassword ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
             });
         });
     });

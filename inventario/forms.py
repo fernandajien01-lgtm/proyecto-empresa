@@ -7,12 +7,55 @@ from .models import (
     CustomUser,
     Empresa,
     Movimiento,
+    Pedido,
     Producto,
     Proveedor,
     Resena,
     SolicitudEmpleado,
     Sugerencia,
 )
+
+
+class MetodoPagoRadioSelect(forms.RadioSelect):
+    template_name = "widgets/metodo_pago.html"
+    option_template_name = "widgets/metodo_pago_option.html"
+
+
+class CheckoutForm(forms.Form):
+    metodo_pago = forms.ChoiceField(
+        choices=Pedido.METODO_PAGO_CHOICES,
+        label="Método de pago",
+        widget=MetodoPagoRadioSelect(),
+    )
+    direccion_entrega = forms.CharField(
+        max_length=255,
+        label="Dirección de entrega",
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Indica dónde recibirás el pedido..."}),
+    )
+    latitud = forms.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "any", "placeholder": "Latitud"}),
+    )
+    longitud = forms.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "any", "placeholder": "Longitud"}),
+    )
+
+    def clean_latitud(self):
+        valor = self.cleaned_data.get("latitud")
+        if valor is not None and not (-90 <= float(valor) <= 90):
+            raise forms.ValidationError("La latitud debe estar entre -90 y 90.")
+        return valor
+
+    def clean_longitud(self):
+        valor = self.cleaned_data.get("longitud")
+        if valor is not None and not (-180 <= float(valor) <= 180):
+            raise forms.ValidationError("La longitud debe estar entre -180 y 180.")
+        return valor
 
 
 class RegistroUsuarioForm(UserCreationForm):
@@ -316,6 +359,15 @@ class EmpresaForm(SpellcheckModelForm):
 
 
 class ProductoForm(SpellcheckModelForm):
+    nueva_categoria = forms.CharField(
+        required=False,
+        label="O crear una categoría nueva",
+        help_text="Si escribes aquí, se creará o usará esa categoría y se asignará al producto.",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Ej. Deportes, Artesanías..."}
+        ),
+    )
+
     class Meta:
         model = Producto
         fields = (
@@ -351,9 +403,14 @@ class ProductoForm(SpellcheckModelForm):
         self.fields.pop("codigo_sku", None)
         self.fields.pop("proveedor", None)
         self.fields.pop("precio_compra", None)
+        self.fields["categoria"].required = False
 
     def clean(self):
         cleaned_data = super().clean()
+        nueva_categoria = cleaned_data.get("nueva_categoria", "").strip()
+        if cleaned_data.get("categoria") is None and not nueva_categoria:
+            self.add_error("categoria", "Selecciona una categoría o escribe una nueva.")
+        cleaned_data["nueva_categoria"] = nueva_categoria
         return cleaned_data
 
     def save(self, commit=True):
@@ -373,15 +430,34 @@ class ProductoForm(SpellcheckModelForm):
             instance.proveedor = default_proveedor
         if instance.precio_compra is None:
             instance.precio_compra = instance.precio_venta
+        nueva_categoria = self.cleaned_data.get("nueva_categoria", "").strip()
+        if nueva_categoria:
+            cat, _ = Categoria.objects.get_or_create(nombre=nueva_categoria)
+            instance.categoria = cat
         if commit:
             instance.save()
         return instance
 
 
 class UserProfileForm(SpellcheckModelForm):
+    latitud = forms.DecimalField(
+        required=False,
+        max_digits=9,
+        decimal_places=6,
+        label="Latitud",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "any", "placeholder": "Ej: 10.4805937"}),
+    )
+    longitud = forms.DecimalField(
+        required=False,
+        max_digits=9,
+        decimal_places=6,
+        label="Longitud",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "any", "placeholder": "Ej: -66.9036063"}),
+    )
+
     class Meta:
         model = CustomUser
-        fields = ("first_name", "last_name", "email", "profile_image", "fecha_nacimiento")
+        fields = ("first_name", "last_name", "email", "profile_image", "fecha_nacimiento", "latitud", "longitud")
         widgets = {
             "first_name": forms.TextInput(attrs={"class": "form-control"}),
             "last_name": forms.TextInput(attrs={"class": "form-control"}),
@@ -394,11 +470,27 @@ class UserProfileForm(SpellcheckModelForm):
         super().__init__(*args, **kwargs)
         if self.instance.pk and self.instance.role == "EMPRESA":
             self.fields.pop("fecha_nacimiento")
+        if self.instance.pk and self.instance.role != "EMPLEADO":
+            self.fields.pop("latitud")
+            self.fields.pop("longitud")
+        if self.instance.pk and self.instance.role == "EMPRESA":
             return
         fecha_min, fecha_max = limites_fecha_nacimiento()
         self.fields["fecha_nacimiento"].widget.attrs.update(
             {"min": fecha_min.isoformat(), "max": fecha_max.isoformat()}
         )
+
+    def clean_latitud(self):
+        valor = self.cleaned_data.get("latitud")
+        if valor is not None and not (-90 <= float(valor) <= 90):
+            raise forms.ValidationError("La latitud debe estar entre -90 y 90.")
+        return valor
+
+    def clean_longitud(self):
+        valor = self.cleaned_data.get("longitud")
+        if valor is not None and not (-180 <= float(valor) <= 180):
+            raise forms.ValidationError("La longitud debe estar entre -180 y 180.")
+        return valor
 
     def clean(self):
         cleaned_data = super().clean()

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}Token de acceso API · Empresa{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb small mb-3">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Token de acceso</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h1 class="h3 fw-bold mb-0">Token de acceso a la API</h1>
+            <p class="text-muted mb-0">Permite integrar aplicaciones externas (caja POS, web, móvil, consultoras) para leer los datos de tu empresa.</p>
+        </div>
+
+        <form method="post" action="{% url 'token_empresa_gestion' %}" class="text-end">
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="regenerar">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('¿Regenerar el token? El anterior dejará de funcionar inmediatamente.');">
+                Regenerar token
+            </button>
+        </form>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h2 class="h6 fw-bold text-muted text-uppercase mb-3">Tu token actual</h2>
+                    {% if token_activo %}
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge text-bg-success">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Activo
+                            </span>
+                            <small class="text-muted">Creado: {{ token_activo.creado_humano }}</small>
+                        </div>
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control form-control-sm font-monospace" id="token-campo" value="{{ token_activo.token }}" readonly aria-label="Token de acceso">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-copiar" title="Copiar token">
+                                Copiar
+                            </button>
+                        </div>
+                        <p class="small text-muted mb-1">Descripción:</p>
+                        <p class="small text-secondary bg-light rounded p-2 mb-3">
+                            {{ token_activo.descripcion|default:"Sin descripción." }}
+                        </p>
+                    {% else %}
+                        <div class="alert alert-warning mb-0">
+                            Aún no has generado un token. Regenera para crearlo.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h2 class="h6 fw-bold text-muted text-uppercase mb-3">Actualizar descripción</h2>
+                    <form method="post" action="{% url 'token_empresa_gestion' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="actualizar">
+                        <div class="mb-3">
+                            <label for="id_descripcion" class="form-label">¿Para qué usarás este token?</label>
+                            <textarea class="form-control" id="id_descripcion" name="descripcion" rows="2" placeholder="Ej.: Acceso para la tienda web / app móvil / consultora de inventario.">{{ token_activo.descripcion }}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Guardar descripción</button>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <h2 class="h6 fw-bold text-muted text-uppercase mb-3">Cómo usar la API</h2>
+                    <p class="small text-muted">
+                        Envía el token en la cabecera <code>Authorization</code> con el esquema <code>Token</code>:
+                    </p>
+                    <pre class="bg-dark text-light rounded p-3 small mb-0"><code>Authorization: Token TU_TOKEN_AQUI</code></pre>
+
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm small align-middle">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Método</th>
+                                    <th scope="col">Endpoint</th>
+                                    <th scope="col">Descripción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="badge text-bg-primary">GET</span></td>
+                                    <td><code>{% url 'api_datos_empresa' %}</code></td>
+                                    <td>Datos generales de la empresa (perfil + KPIs).</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="badge text-bg-primary">GET</span></td>
+                                    <td><code>{% url 'api_pedidos_empresa' %}</code></td>
+                                    <td>Últimos 50 pedidos de la empresa, con sus ítems.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info small mb-0">
+                        <strong>Importante:</strong> el token da acceso de solo lectura a los datos de <em>tu</em> empresa.
+                        No lo compartas; si crees que se filtró, regenéralo desde este panel.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById("btn-copiar")?.addEventListener("click", function () {
+        var campo = document.getElementById("token-campo");
+        if (!campo) return;
+        campo.select();
+        campo.setSelectionRange(0, 99999);
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(campo.value).then(function () {
+                var boton = document.getElementById("btn-copiar");
+                boton.textContent = "¡Copiado!";
+                setTimeout(function () { boton.textContent = "Copiar"; }, 1800);
+            });
+        } else {
+            document.execCommand("copy");
+        }
+    });
+</script>
+{% endblock %}

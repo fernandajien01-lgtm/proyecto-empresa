@@ -8,6 +8,20 @@
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <h2 class="mb-3">{{ accion }} producto</h2>
+                {% if request.user.role == 'EMPLEADO' %}
+                    <div class="alert alert-warning py-2 small">
+                        Los productos creados o editados por un empleado quedan
+                        <strong>pendientes de aprobación</strong> de la empresa antes de publicarse en el catálogo.
+                    </div>
+                {% elif producto and producto.estado == 'RECHAZADO' %}
+                    <div class="alert alert-danger py-2 small">
+                        Este producto fue rechazado. Al guardarlo volverá a enviarse a aprobación de la empresa.
+                    </div>
+                {% elif producto and producto.estado == 'PENDIENTE' %}
+                    <div class="alert alert-warning py-2 small">
+                        Este producto está pendiente de aprobación de la empresa.
+                    </div>
+                {% endif %}
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     {% for field in form %}

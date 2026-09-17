@@ -30,6 +30,15 @@
                             {% endif %}
                         </div>
                     {% endfor %}
+                    {% if user.role == 'EMPLEADO' %}
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-outline-primary" id="btn-geo-perfil">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                Usar mi ubicación actual
+                            </button>
+                            <div id="geo-msg-perfil" class="form-text"></div>
+                        </div>
+                    {% endif %}
                     <button type="submit" class="btn btn-primary-custom">Guardar</button>
                     <a href="{% url 'producto_list' %}" class="btn btn-outline-secondary">Cancelar</a>
                 </form>
@@ -52,6 +61,37 @@
                     previewWrap.style.display = 'block';
                 };
                 reader.readAsDataURL(file);
+            });
+        }
+        const btnGeo = document.getElementById('btn-geo-perfil');
+        const msg = document.getElementById('geo-msg-perfil');
+        if (btnGeo) {
+            btnGeo.addEventListener('click', function () {
+                if (!('geolocation' in navigator)) {
+                    msg.textContent = 'Tu navegador no permite conocer tu ubicación; escríbela manualmente.';
+                    return;
+                }
+                const lat = document.getElementById('id_latitud');
+                const lon = document.getElementById('id_longitud');
+                btnGeo.disabled = true;
+                msg.textContent = 'Pidiendo permiso al navegador...';
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        lat.value = pos.coords.latitude.toFixed(6);
+                        lon.value = pos.coords.longitude.toFixed(6);
+                        msg.textContent = 'Ubicación capturada automáticamente. Revisa y pulsa Guardar.';
+                        btnGeo.disabled = false;
+                    },
+                    function (err) {
+                        var texto = 'No se pudo obtener tu ubicación; escríbela manualmente.';
+                        if (err && err.code === 1) {
+                            texto = 'Bloqueaste el acceso a tu ubicación. Permítele al navegador usarla o escríbela manualmente.';
+                        }
+                        msg.textContent = texto;
+                        btnGeo.disabled = false;
+                    },
+                    { enableHighAccuracy: true, timeout: 9000 }
+                );
             });
         }
     });

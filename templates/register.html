@@ -39,12 +39,27 @@
                                     {% if field.name == 'password1' or field.name == 'password2' %}
                                         <div class="input-group">
                                             {{ field }}
+                                            <button type="button" class="btn btn-outline-secondary toggle-password" data-target="{{ field.id_for_label }}" aria-label="Mostrar u ocultar contraseña">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
                                         </div>
                                     {% else %}
                                         {{ field }}
                                     {% endif %}
                                     {% if field.errors %}
                                         <div class="text-danger small mt-1">{{ field.errors|join:', ' }}</div>
+                                    {% endif %}
+                                    {% if field.name == 'residencia' %}
+                                        <button type="button" id="btnRellenarUbicacion" class="btn btn-sm btn-outline-primary mt-2">
+                                            <i class="bi bi-crosshair"></i> Rellenar con mi ubicación actual
+                                        </button>
+                                        <div id="estadoUbicacion" class="small mt-2"></div>
+                                    {% endif %}
+                                    {% if field.name == 'fecha_nacimiento' %}
+                                        <div id="avisoMayoriaEdad" class="alert alert-warning py-2 px-3 mt-2 d-none" role="alert">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                            Debes ser <strong>mayor de edad (18 años)</strong> para poder registrarte.
+                                        </div>
                                     {% endif %}
                                     {% if field.name == 'profile_image' %}
                                         <div class="mt-2" id="profile_image_preview_wrap" style="display:none">
@@ -116,11 +131,11 @@
 
         document.querySelectorAll('.toggle-password').forEach(function (button) {
             button.addEventListener('click', function () {
-                const target = document.getElementById(this.dataset.target);
-                if (!target) return;
-                const isPassword = target.type === 'password';
-                target.type = isPassword ? 'text' : 'password';
-                this.innerHTML = isPassword ? '<span>◌</span>' : '<span>◉</span>';
+                const input = document.getElementById(this.dataset.target);
+                if (!input) return;
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                this.innerHTML = isPassword ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
             });
         });
 
@@ -138,6 +153,108 @@
                 };
                 reader.readAsDataURL(file);
             });
+        }
+
+        const btnRellenarUbicacion = document.getElementById('btnRellenarUbicacion');
+        const resinput = document.getElementById('id_residencia');
+        const estadoUbicacion = document.getElementById('estadoUbicacion');
+        function rellenarDesdeGPS(latitud, longitud) {
+            const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' +
+                encodeURIComponent(latitud) + '&lon=' + encodeURIComponent(longitud) +
+                '&zoom=18&addressdetails=1&accept-language=es';
+            return fetch(url, { headers: { 'Accept-Language': 'es' } })
+                .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(function (datos) {
+                    const p = datos.address || {};
+                    const partes = [];
+                    if (p.road) partes.push(p.road);
+                    if (p.house_number) partes.push(p.house_number);
+                    if (p.suburb || p.neighbourhood) partes.push(p.suburb || p.neighbourhood);
+                    if (p.city || p.town || p.village || p.municipality) partes.push(p.city || p.town || p.village || p.municipality);
+                    if (p.state) partes.push(p.state);
+                    if (p.country) partes.push(p.country);
+                    const texto = partes.filter(Boolean).join(', ');
+                    if (!texto) throw new Error('dirección vacía');
+                    return texto;
+                });
+        }
+        if (btnRellenarUbicacion && resinput && estadoUbicacion) {
+            btnRellenarUbicacion.addEventListener('click', function () {
+                if (resinput.value.trim()) {
+                    if (!window.confirm('¿Sobrescribir la residencia que ya escribiste con tu ubicación actual?')) return;
+                }
+                if (!navigator.geolocation) {
+                    estadoUbicacion.className = 'text-danger small';
+                    estadoUbicacion.textContent = 'Tu navegador no soporta geolocalización. Escribe tu residencia manualmente.';
+                    return;
+                }
+                btnRellenarUbicacion.disabled = true;
+                estadoUbicacion.className = 'text-muted small';
+                estadoUbicacion.textContent = 'Obteniendo tu ubicación…';
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        if (!pos || !pos.coords) {
+                            estadoUbicacion.className = 'text-danger small';
+                            estadoUbicacion.textContent = 'No pudimos obtener tus coordenadas. Inténtalo de nuevo.';
+                            btnRellenarUbicacion.disabled = false;
+                            return;
+                        }
+                        const lat = pos.coords.latitude;
+                        const lon = pos.coords.longitude;
+                        rellenarDesdeGPS(lat, lon)
+                            .then(function (direccion) {
+                                resinput.value = direccion;
+                                estadoUbicacion.className = 'text-success small';
+                                estadoUbicacion.textContent = 'Residencia completada con tu ubicación actual (' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ').';
+                            })
+                            .catch(function () {
+                                estadoUbicacion.className = 'text-danger small';
+                                estadoUbicacion.textContent = 'No encontramos una dirección cercana. Escríbela manualmente.';
+                            })
+                            .finally(function () {
+                                btnRellenarUbicacion.disabled = false;
+                            });
+                    },
+                    function (err) {
+                        let mensaje = 'No pudimos obtener tu ubicación.';
+                        if (err && err.code === 1) mensaje = 'Bloqueaste el permiso de ubicación. Escríbela manualmente o cambia el permiso del navegador.';
+                        else if (err && err.code === 2) mensaje = 'Tu ubicación no está disponible en este dispositivo. Escríbela manualmente.';
+                        else if (err && err.code === 3) mensaje = 'Se agotó el tiempo esperando tu ubicación. Inténtalo de nuevo.';
+                        estadoUbicacion.className = 'text-danger small';
+                        estadoUbicacion.textContent = mensaje;
+                        btnRellenarUbicacion.disabled = false;
+                    },
+                    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+                );
+            });
+        }
+
+        const fechaInput = document.getElementById('id_fecha_nacimiento');
+        const aviso = document.getElementById('avisoMayoriaEdad');
+        function mayorDeEdad(fechaTexto) {
+            if (!fechaTexto || fechaTexto.length !== 10) return null;
+            const partes = fechaTexto.split('-');
+            const fecha = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
+            if (isNaN(fecha.getTime())) return null;
+            const hoy = new Date();
+            let edad = hoy.getFullYear() - fecha.getFullYear();
+            const mes = hoy.getMonth() - fecha.getMonth();
+            if (mes < 0 || (mes === 0 && hoy.getDate() < fecha.getDate())) edad--;
+            return edad;
+        }
+        function sincronizarAviso() {
+            if (!fechaInput || !aviso) return;
+            const edad = mayorDeEdad(fechaInput.value);
+            if (edad === null) {
+                aviso.classList.add('d-none');
+                return;
+            }
+            aviso.classList.toggle('d-none', edad >= 18);
+        }
+        if (fechaInput && aviso) {
+            fechaInput.addEventListener('change', sincronizarAviso);
+            fechaInput.addEventListener('input', sincronizarAviso);
+            sincronizarAviso();
         }
     });
 </script>

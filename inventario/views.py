@@ -1,15 +1,23 @@
 from datetime import timedelta
+from decimal import Decimal
+import json
+import secrets
 
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
+from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from .geo import haversine_km
+
 from .forms import (
     CategoriaForm,
+    CheckoutForm,
     EmpresaForm,
     MovimientoForm,
     ProductoForm,
@@ -20,11 +28,15 @@ from .forms import (
     SugerenciaForm,
 )
 from .models import (
+    CarritoItem,
     Categoria,
     ChatMensaje,
     CustomUser,
     Empresa,
     Movimiento,
+    Notificacion,
+    Pedido,
+    PedidoItem,
     Producto,
     Proveedor,
     ReaccionProducto,
@@ -32,6 +44,7 @@ from .models import (
     Resena,
     SolicitudEmpleado,
     Sugerencia,
+    TokenEmpresa,
     ensure_default_categorias,
 )
 
@@ -165,6 +178,12 @@ def dashboard(request):
     total_unidades_vendidas = sum(item["unidades_vendidas"] or 0 for item in ventas)
     alertas = productos.filter(cantidad_stock__lte=F("stock_minimo"))
     solicitudes = SolicitudEmpleado.objects.filter(empresa=empresa).select_related("empleado").order_by("-fecha_creacion")
+    por_aprobar = productos.filter(estado=Producto.PENDIENTE)
+    rechazados = productos.filter(estado=Producto.RECHAZADO)
+    request.user.notificaciones.filter(tipo=Notificacion.PRODUCTO, leida=False).update(leida=True)
+    aprobados_empleados = productos.filter(estado=Producto.APROBADO, creado_por__isnull=False).select_related(
+        "creado_por", "categoria"
+    )
 
     context = {
         "productos": productos,
@@ -173,6 +192,9 @@ def dashboard(request):
         "total_unidades_vendidas": total_unidades_vendidas,
         "alertas": alertas,
         "solicitudes": solicitudes,
+        "por_aprobar": por_aprobar,
+        "rechazados": rechazados,
+        "aprobados_empleados": aprobados_empleados,
         "total_productos": productos.count(),
         "stock_bajo": alertas.count(),
     }
@@ -207,7 +229,13 @@ def solicitudes_empresa(request):
         return redirect("producto_list")
     empresa = request.user.empresa
     solicitudes = SolicitudEmpleado.objects.filter(empresa=empresa).select_related("empleado").order_by("-fecha_creacion")
-    return render(request, "solicitudes_empresa.html", {"solicitudes": solicitudes})
+    pendientes = solicitudes.filter(estado="PENDIENTE").count()
+    resueltas = solicitudes.filter(estado__in=["ACEPTADA", "RECHAZADA"]).count()
+    return render(
+        request,
+        "solicitudes_empresa.html",
+        {"solicitudes": solicitudes, "pendientes": pendientes, "resueltas": resueltas},
+    )
 
 
 @login_required
@@ -329,7 +357,9 @@ def empresa_detalle(request, empresa_id):
         return redirect("dashboard")
 
     empresa = get_object_or_404(Empresa, pk=empresa_id)
-    productos = Producto.objects.filter(empresa=empresa).select_related("categoria", "proveedor", "empresa")
+    productos = Producto.objects.filter(empresa=empresa, estado=Producto.APROBADO).select_related(
+        "categoria", "proveedor", "empresa"
+    )
     solicitud = SolicitudEmpleado.objects.filter(empleado=request.user, empresa=empresa).first()
     return render(request, "empresa_detalle.html", {"empresa": empresa, "productos": productos, "solicitud": solicitud})
 
@@ -358,8 +388,58 @@ def sugerencia_crear(request):
 
 @login_required
 def categoria_crear(request):
-    messages.warning(request, "Las categorías ya vienen predefinidas por el sistema.")
-    return redirect("dashboard")
+    if request.user.role not in {"EMPLEADO", "EMPRESA"}:
+        messages.warning(request, "Solo empleados o empresas pueden gestionar categorías.")
+        return redirect("producto_list")
+    if request.method == "POST":
+        form = CategoriaForm(request.POST)
+        if form.is_valid():
+            categoria = form.save()
+            messages.success(request, f"Categoría '{categoria.nombre}' creada correctamente.")
+            return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
+    else:
+        form = CategoriaForm()
+    return render(request, "categoria_form.html", {"form": form, "accion": "Crear"})
+
+
+@login_required
+def categoria_editar(request, pk):
+    if request.user.role not in {"EMPLEADO", "EMPRESA"}:
+        messages.warning(request, "Solo empleados o empresas pueden gestionar categorías.")
+        return redirect("producto_list")
+    categoria = get_object_or_404(Categoria, pk=pk)
+    if request.method == "POST":
+        form = CategoriaForm(request.POST, instance=categoria)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Categoría '{categoria.nombre}' actualizada correctamente.")
+            return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
+    else:
+        form = CategoriaForm(instance=categoria)
+    return render(
+        request, "categoria_form.html", {"form": form, "accion": "Editar", "categoria": categoria}
+    )
+
+
+@login_required
+def gestionar_categorias(request):
+    if request.user.role not in {"EMPLEADO", "EMPRESA"}:
+        messages.warning(request, "Solo empleados o empresas pueden gestionar categorías.")
+        return redirect("producto_list")
+    if request.method == "POST":
+        form = CategoriaForm(request.POST)
+        if form.is_valid():
+            categoria = form.save()
+            messages.success(request, f"Categoría '{categoria.nombre}' creada correctamente.")
+            return redirect("gestionar_categorias")
+    else:
+        form = CategoriaForm()
+    categorias = Categoria.objects.order_by("nombre")
+    return render(
+        request,
+        "gestionar_categorias.html",
+        {"form": form, "categorias": categorias},
+    )
 
 
 @login_required
@@ -510,8 +590,20 @@ def producto_crear(request):
         if form.is_valid():
             producto = form.save(commit=False)
             producto.empresa = request.user.empresa or request.user.empresa
+            if request.user.role == "EMPLEADO":
+                producto.estado = Producto.PENDIENTE
+                producto.creado_por = request.user
+            else:
+                producto.estado = Producto.APROBADO
             producto.save()
-            messages.success(request, "Producto creado correctamente.")
+            if request.user.role == "EMPLEADO":
+                messages.success(
+                    request,
+                    "Producto enviado correctamente. Quedará visible en el catálogo cuando la empresa lo apruebe.",
+                )
+                _notificar_producto_para_aprobacion(producto)
+            else:
+                messages.success(request, "Producto creado correctamente.")
             return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
     else:
         form = ProductoForm()
@@ -543,7 +635,18 @@ def producto_editar(request, pk):
         form = ProductoForm(request.POST, request.FILES, instance=producto)
         if form.is_valid():
             form.save()
-            messages.success(request, "Producto actualizado correctamente.")
+            if request.user.role == "EMPLEADO":
+                producto.estado = Producto.PENDIENTE
+                producto.save(update_fields=["estado"])
+                _notificar_producto_para_aprobacion(producto)
+                messages.success(
+                    request,
+                    "Producto actualizado. Se requiere la aprobación de la empresa para publicarse.",
+                )
+            else:
+                producto.estado = Producto.APROBADO
+                producto.save(update_fields=["estado"])
+                messages.success(request, "Producto actualizado correctamente.")
             return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
     else:
         form = ProductoForm(instance=producto)
@@ -552,14 +655,60 @@ def producto_editar(request, pk):
 
 @login_required
 def producto_eliminar(request, pk):
-    if request.user.role != "EMPRESA":
+    if request.user.role not in {"EMPRESA", "EMPLEADO"}:
+        messages.warning(request, "No tienes permisos para eliminar productos.")
         return redirect("producto_list")
-    producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa)
+
+    if request.user.role == "EMPRESA":
+        producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa)
+    else:
+        if request.user.empresa is None:
+            messages.warning(request, "Debes pertenecer a una empresa para eliminar productos.")
+            return redirect("producto_list")
+        solicitud = SolicitudEmpleado.objects.filter(
+            empleado=request.user,
+            empresa=request.user.empresa,
+            estado=SolicitudEmpleado.ACEPTADA,
+        ).exists()
+        if not solicitud:
+            messages.warning(request, "Solo puedes eliminar tus productos si tu solicitud a la empresa fue aceptada.")
+            return redirect("producto_list")
+        producto = get_object_or_404(Producto, pk=pk, creado_por=request.user)
+
     if request.method == "POST":
         producto.delete()
         messages.success(request, "Producto eliminado correctamente.")
-        return redirect("dashboard")
+        return redirect("dashboard" if request.user.role == "EMPRESA" else "producto_list")
     return render(request, "producto_confirm_delete.html", {"producto": producto})
+
+
+@login_required
+@require_POST
+def aprobar_producto(request, pk, accion):
+    if request.user.role != "EMPRESA":
+        messages.warning(request, "Solo la empresa puede aprobar productos.")
+        return redirect("producto_list")
+    producto = get_object_or_404(Producto, pk=pk, empresa=request.user.empresa)
+    if accion == "aprobar":
+        if producto.estado not in {Producto.PENDIENTE, Producto.RECHAZADO}:
+            messages.warning(request, "Este producto ya está aprobado.")
+        else:
+            producto.estado = Producto.APROBADO
+            producto.save(update_fields=["estado"])
+            _notificar_resultado_producto(producto, aprobado=True)
+            messages.success(request, f"Producto '{producto.nombre}' aprobado y publicado.")
+    elif accion == "rechazar":
+        if producto.estado != Producto.PENDIENTE:
+            messages.warning(request, "Solo se pueden rechazar productos pendientes de aprobación.")
+        else:
+            motivo = request.POST.get("motivo", "").strip()
+            producto.estado = Producto.RECHAZADO
+            producto.save(update_fields=["estado"])
+            _notificar_resultado_producto(producto, aprobado=False, motivo=motivo)
+            messages.success(request, f"Producto '{producto.nombre}' rechazado.")
+    else:
+        messages.warning(request, "Acción inválida.")
+    return redirect("dashboard")
 
 
 @login_required
@@ -621,6 +770,10 @@ def producto_list(request):
 
     if request.user.is_authenticated and request.user.role == "EMPRESA":
         productos = Producto.objects.select_related("categoria", "proveedor", "empresa").filter(empresa=request.user.empresa).all()
+        if busqueda_categoria:
+            productos = productos.filter(categoria__nombre__icontains=busqueda_categoria)
+        if busqueda_producto:
+            productos = productos.filter(nombre__icontains=busqueda_producto)
         context = {
             "productos": productos,
             "form": ResenaForm(),
@@ -633,6 +786,31 @@ def producto_list(request):
         return render(request, "producto_list.html", context)
 
     if request.user.is_authenticated and request.user.role == "EMPLEADO":
+        mis_productos = (
+            Producto.objects.filter(creado_por=request.user)
+            .select_related("categoria", "proveedor", "empresa")
+        )
+        if busqueda_producto or busqueda_categoria:
+            productos = (
+                Producto.objects.select_related("categoria", "proveedor", "empresa")
+                .filter(estado=Producto.APROBADO)
+            )
+            if busqueda_categoria:
+                productos = productos.filter(categoria__nombre__icontains=busqueda_categoria)
+            if busqueda_producto:
+                productos = productos.filter(nombre__icontains=busqueda_producto)
+            context = {
+                "productos": productos,
+                "mis_productos": mis_productos,
+                "form": ResenaForm(),
+                "busqueda_empresa": "",
+                "busqueda_categoria": busqueda_categoria,
+                "busqueda_producto": busqueda_producto,
+                "empresas_data": [],
+                "categorias": Categoria.objects.all(),
+            }
+            return render(request, "producto_list.html", context)
+
         empresas = Empresa.objects.all()
         if busqueda_empresa:
             empresas = empresas.filter(nombre__icontains=busqueda_empresa)
@@ -660,6 +838,7 @@ def producto_list(request):
 
         context = {
             "empresas_data": empresas_data,
+            "mis_productos": mis_productos,
             "busqueda_empresa": busqueda_empresa,
             "busqueda_categoria": "",
             "busqueda_producto": "",
@@ -669,7 +848,10 @@ def producto_list(request):
         return render(request, "producto_list.html", context)
 
     if request.user.is_authenticated and request.user.role == "CLIENTE":
-        productos = Producto.objects.select_related("categoria", "proveedor", "empresa").all()
+        productos = (
+            Producto.objects.select_related("categoria", "proveedor", "empresa")
+            .filter(estado=Producto.APROBADO)
+        )
         if busqueda_empresa:
             productos = productos.filter(empresa__nombre__icontains=busqueda_empresa)
         if busqueda_categoria:
@@ -688,7 +870,10 @@ def producto_list(request):
         }
         return render(request, "producto_list.html", context)
 
-    productos = Producto.objects.select_related("categoria", "proveedor", "empresa").all()
+    productos = (
+        Producto.objects.select_related("categoria", "proveedor", "empresa")
+        .filter(estado=Producto.APROBADO)
+    )
     if busqueda_empresa:
         productos = productos.filter(empresa__nombre__icontains=busqueda_empresa)
     if busqueda_categoria:
@@ -702,6 +887,7 @@ def producto_list(request):
         "busqueda_empresa": busqueda_empresa,
         "busqueda_categoria": busqueda_categoria,
         "busqueda_producto": busqueda_producto,
+        "empresas_data": [],
         "categorias": Categoria.objects.all(),
     }
     return render(request, "producto_list.html", context)
@@ -712,7 +898,7 @@ def reaccion_producto(request, producto_id, tipo):
     if tipo not in {ReaccionProducto.LIKE}:
         messages.error(request, "Tipo de reacción inválido.")
         return redirect("producto_list")
-    producto = get_object_or_404(Producto, pk=producto_id)
+    producto = get_object_or_404(Producto, pk=producto_id, estado=Producto.APROBADO)
     reaccion, created = ReaccionProducto.objects.get_or_create(producto=producto, usuario=request.user)
     reaccion.tipo = tipo
     reaccion.save()
@@ -735,7 +921,7 @@ def reaccion_resena(request, resena_id, tipo):
 
 @login_required
 def resena_crear(request, producto_id):
-    producto = get_object_or_404(Producto, pk=producto_id)
+    producto = get_object_or_404(Producto, pk=producto_id, estado=Producto.APROBADO)
     if request.method == "POST":
         form = ResenaForm(request.POST, initial={"autor": request.user if request.user.is_authenticated else None})
         if form.is_valid():
@@ -775,25 +961,701 @@ def realizar_pedido(request, pk):
     if request.user.role == "EMPLEADO":
         messages.warning(request, "Los empleados no pueden comprar productos.")
         return redirect("producto_list")
-    producto = get_object_or_404(Producto, pk=pk)
+    producto = get_object_or_404(Producto, pk=pk, estado=Producto.APROBADO)
     if request.user.role != "CLIENTE":
         messages.warning(request, "Solo los clientes pueden comprar productos.")
         return redirect("producto_list")
     if producto.cantidad_stock <= 0:
         messages.error(request, "Este producto no tiene stock disponible.")
         return redirect("producto_list")
-    if producto.cantidad_stock < 1:
-        messages.error(request, "La cantidad solicitada supera el stock disponible.")
+
+    pedido = Pedido.objects.create(
+        cliente=request.user,
+        empresa=producto.empresa,
+        metodo_pago=Pedido.EFECTIVO,
+        direccion_entrega="",
+        total=producto.precio_venta,
+    )
+    PedidoItem.objects.create(pedido=pedido, producto=producto, cantidad=1, precio=producto.precio_venta)
+    _notificar_nuevo_pedido(pedido)
+    messages.success(request, f"Pedido realizado para {producto.nombre}. Un empleado lo procesará pronto.")
+    return redirect("mis_pedidos")
+
+
+@login_required
+def carrito_detalle(request):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes tienen carrito de compras.")
+        return redirect("producto_list")
+    items = list(
+        CarritoItem.objects.filter(usuario=request.user).select_related(
+            "producto__empresa", "producto__categoria"
+        )
+    )
+    total = 0
+    for item in items:
+        item.subtotal = item.producto.precio_venta * item.cantidad
+        total += item.subtotal
+    return render(request, "carrito.html", {"items": items, "total": total})
+
+
+@login_required
+@require_POST
+def carrito_agregar(request, pk):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes pueden usar el carrito de compras.")
+        return redirect("producto_list")
+    producto = get_object_or_404(Producto, pk=pk, estado=Producto.APROBADO)
+    try:
+        cantidad = int(request.POST.get("cantidad", "1"))
+    except (TypeError, ValueError):
+        cantidad = 1
+    cantidad = max(1, cantidad)
+    item, created = CarritoItem.objects.get_or_create(
+        usuario=request.user, producto=producto, defaults={"cantidad": cantidad}
+    )
+    if not created:
+        item.cantidad += cantidad
+        item.save()
+    messages.success(request, f"{producto.nombre} agregado al carrito ({item.cantidad} uds).")
+    return redirect("carrito_detalle")
+
+
+@login_required
+@require_POST
+def carrito_actualizar(request, item_id):
+    item = get_object_or_404(CarritoItem, pk=item_id, usuario=request.user)
+    try:
+        cantidad = int(request.POST.get("cantidad", "1"))
+    except (TypeError, ValueError):
+        cantidad = 1
+    if cantidad < 1:
+        item.delete()
+        messages.info(request, f"{item.producto.nombre} eliminado del carrito.")
+    else:
+        item.cantidad = cantidad
+        item.save()
+        messages.info(request, f"Cantidad actualizada de {item.producto.nombre}.")
+    return redirect("carrito_detalle")
+
+
+@login_required
+@require_POST
+def carrito_quitar(request, item_id):
+    item = get_object_or_404(CarritoItem, pk=item_id, usuario=request.user)
+    item.delete()
+    messages.info(request, f"{item.producto.nombre} eliminado del carrito.")
+    return redirect("carrito_detalle")
+
+
+def _notificar_nuevo_pedido(pedido):
+    empleados = CustomUser.objects.filter(role="EMPLEADO", empresa=pedido.empresa)
+    for empleado in empleados:
+        Notificacion.objects.get_or_create(
+            usuario=empleado,
+            tipo=Notificacion.PEDIDO,
+            pedido=pedido,
+            defaults={
+                "titulo": f"Nuevo pedido #{pedido.pk}",
+                "mensaje": (
+                    f"El cliente {pedido.cliente.username} realizó un pedido por "
+                    f"${pedido.total}. Revisa para confirmar la compra."
+                ),
+            },
+        )
+
+
+def _empresa_usuario(empresa):
+    return CustomUser.objects.filter(role="EMPRESA", empresa=empresa).first()
+
+
+def _notificar_producto_para_aprobacion(producto):
+    empresa_user = _empresa_usuario(producto.empresa)
+    if empresa_user is None:
+        return
+    autor = producto.creado_por.username if producto.creado_por else "Un empleado"
+    Notificacion.objects.create(
+        usuario=empresa_user,
+        tipo=Notificacion.PRODUCTO,
+        titulo=f"Producto por aprobar: {producto.nombre}",
+        mensaje=f"{autor} solicitó aprobar el producto '{producto.nombre}'. Revisa el dashboard.",
+    )
+
+
+def _notificar_resultado_producto(producto, aprobado, motivo=""):
+    creador = producto.creado_por
+    if creador is None:
+        return
+    estado = "aprobado" if aprobado else "rechazado"
+    verbo = "aprobó" if aprobado else "rechazó"
+    mensaje = f"La empresa {verbo} el producto '{producto.nombre}'."
+    if not aprobado and motivo:
+        mensaje += f" Motivo: {motivo}"
+    Notificacion.objects.create(
+        usuario=creador,
+        tipo=Notificacion.PRODUCTO,
+        titulo=f"Producto {estado}: {producto.nombre}",
+        mensaje=mensaje,
+    )
+
+
+def _thread_pedido(pedido, a, b):
+    if a is None or b is None or a == b:
+        return ChatMensaje.objects.none()
+    return (
+        ChatMensaje.objects.filter(pedido=pedido)
+        .filter(Q(emisor=a, receptor=b) | Q(emisor=b, receptor=a))
+        .order_by("fecha")
+    )
+
+
+METODOS_PAGO_INFO = {
+    "EFECTIVO": "Pagarás en efectivo al empleado en el momento de la entrega.",
+    "TRANSFERENCIA": "Realiza una transferencia o depósito a la cuenta de la empresa y confírmalo por el chat del pedido.",
+    "TARJETA": "Paga con tarjeta de débito o crédito cuando recibas el pedido.",
+    "PAGO_MOVIL": "Usa pago móvil o Zelle; el empleado te indicará el titular al confirmar el pedido.",
+}
+
+
+@login_required
+def carrito_checkout(request):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes pueden realizar compras.")
+        return redirect("producto_list")
+    items = list(CarritoItem.objects.filter(usuario=request.user).select_related("producto", "producto__empresa"))
+    if not items:
+        messages.info(request, "Tu carrito está vacío.")
+        return redirect("carrito_detalle")
+
+    por_empresa = {}
+    for item in items:
+        por_empresa.setdefault(item.producto.empresa_id, []).append(item)
+
+    grupos = []
+    total = Decimal("0")
+    for empresa_id, emp_items in por_empresa.items():
+        subtotal = sum((i.producto.precio_venta * i.cantidad for i in emp_items), Decimal("0"))
+        total += subtotal
+        grupos.append({"empresa": emp_items[0].producto.empresa, "items": emp_items, "subtotal": subtotal})
+
+    if request.method == "POST":
+        form = CheckoutForm(request.POST)
+        if form.is_valid():
+            sin_stock = [
+                i.producto.nombre for i in items if i.cantidad > i.producto.cantidad_stock
+            ]
+            if sin_stock:
+                messages.error(request, "Sin stock suficiente para: " + ", ".join(sin_stock))
+                return redirect("carrito_checkout")
+            creados = 0
+            for empresa_id, emp_items in por_empresa.items():
+                empresa = emp_items[0].producto.empresa
+                subtotal = sum((i.producto.precio_venta * i.cantidad for i in emp_items), Decimal("0"))
+                pedido = Pedido.objects.create(
+                    cliente=request.user,
+                    empresa=empresa,
+                    metodo_pago=form.cleaned_data["metodo_pago"],
+                    direccion_entrega=form.cleaned_data["direccion_entrega"],
+                    latitud=form.cleaned_data.get("latitud"),
+                    longitud=form.cleaned_data.get("longitud"),
+                    total=subtotal,
+                )
+                PedidoItem.objects.bulk_create(
+                    [
+                        PedidoItem(pedido=pedido, producto=i.producto, cantidad=i.cantidad, precio=i.producto.precio_venta)
+                        for i in emp_items
+                    ]
+                )
+                _notificar_nuevo_pedido(pedido)
+                creados += 1
+            CarritoItem.objects.filter(usuario=request.user).delete()
+            messages.success(
+                request,
+                f"Pedido{'s' if creados > 1 else ''} realizado correctamente. Un empleado lo procesará pronto.",
+            )
+            return redirect("mis_pedidos")
+    else:
+        form = CheckoutForm(initial={"metodo_pago": Pedido.EFECTIVO})
+    metodos_pago = [
+        {
+            "value": value,
+            "label": label,
+            "detalle": METODOS_PAGO_INFO.get(value, ""),
+        }
+        for value, label in Pedido.METODO_PAGO_CHOICES
+    ]
+    return render(
+        request,
+        "checkout.html",
+        {"items": items, "grupos": grupos, "total": total, "form": form, "metodos_pago": metodos_pago},
+    )
+
+
+@login_required
+def mis_pedidos(request):
+    if request.user.role != "CLIENTE":
+        messages.warning(request, "Solo los clientes tienen pedidos.")
+        return redirect("producto_list")
+    pedidos = (
+        Pedido.objects.filter(cliente=request.user)
+        .select_related("empresa", "empleado")
+        .prefetch_related("items__producto")
+    )
+    return render(request, "mis_pedidos.html", {"pedidos": pedidos})
+
+
+def _pedido_visible_para(usuario, pedido):
+    """¿Puede usuario ver el pedido? Cliente dueño, la empresa o cualquier empleado de ella."""
+    if usuario.role == "CLIENTE":
+        return pedido.cliente_id == usuario.id
+    if usuario.role == "EMPRESA":
+        return usuario.empresa_id is not None and usuario.empresa_id == pedido.empresa_id
+    if usuario.role == "EMPLEADO":
+        return usuario.empresa_id is not None and usuario.empresa_id == pedido.empresa_id
+    return False
+
+
+def _pedidos_activos_empleado(empleado):
+    """Pedidos a cargo del empleado que aún no se han entregado (pendientes + procesados)."""
+    return Pedido.objects.filter(
+        empleado=empleado, estado__in=[Pedido.PENDIENTE, Pedido.PROCESADO]
+    ).count()
+
+
+def _coordenadas_validas(lat, lon):
+    if lat is None or lon is None:
+        return False
+    lat_f = float(lat)
+    lon_f = float(lon)
+    return -90 <= lat_f <= 90 and -180 <= lon_f <= 180
+
+
+def _clasificar_disponibles(pedidos, lat, lon, radio_km):
+    """Separa pedidos disponibles en (cerca, otros) por distancia desde (lat, lon).
+
+    Los pedidos sin coordenadas se incluyen en 'otros' para que ninguno se pierda.
+    Los pedidos con coordenadas se anotan con el atributo _distancia_km.
+    """
+    cerca = []
+    otros = []
+    for p in pedidos:
+        if (
+            _coordenadas_validas(lat, lon)
+            and _coordenadas_validas(p.latitud, p.longitud)
+        ):
+            distancia = haversine_km(float(lat), float(lon), float(p.latitud), float(p.longitud))
+            p.distancia_km = round(distancia, 1)
+            if distancia <= radio_km:
+                cerca.append(p)
+            else:
+                otros.append(p)
+        else:
+            otros.append(p)
+    cerca.sort(key=lambda p: p.distancia_km)
+    return cerca, otros
+
+
+@login_required
+def pedido_detalle(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    es_cliente = request.user.role == "CLIENTE" and pedido.cliente == request.user
+    es_empleado = request.user.role == "EMPLEADO" and request.user.empresa_id == pedido.empresa_id
+    es_responsable = es_empleado and pedido.empleado == request.user
+    es_empresa = request.user.role == "EMPRESA" and request.user.empresa_id == pedido.empresa_id
+    if not _pedido_visible_para(request.user, pedido):
+        messages.warning(request, "No tienes acceso a este pedido.")
+        if request.user.role == "CLIENTE":
+            return redirect("mis_pedidos")
+        if request.user.role == "EMPLEADO":
+            return redirect("pedidos_empleado")
         return redirect("producto_list")
 
-    producto.cantidad_stock -= 1
-    producto.save()
-    Movimiento.objects.create(
-        producto=producto,
-        tipo_movimiento=Movimiento.TIPO_SALIDA,
-        cantidad=1,
-        usuario=request.user,
-        nota=f"Pedido realizado por {request.user.username}",
+    if request.method == "POST":
+        contenido = (request.POST.get("mensaje") or "").strip()
+        modo = request.POST.get("modo", "")
+        receptor = None
+        if contenido and modo in {"empleado", "empresa"}:
+            if modo == "empleado":
+                if es_cliente:
+                    receptor = pedido.empleado
+                elif es_responsable:
+                    receptor = pedido.cliente
+            else:
+                if es_cliente:
+                    receptor = _empresa_usuario(pedido.empresa)
+                elif es_empresa:
+                    receptor = pedido.cliente
+            if receptor is not None:
+                ChatMensaje.objects.create(
+                    emisor=request.user,
+                    receptor=receptor,
+                    mensaje=contenido,
+                    pedido=pedido,
+                )
+            else:
+                messages.warning(request, "El contacto indicado no está disponible aún.")
+        return redirect("pedido_detalle", pk=pedido.pk)
+
+    empleado = pedido.empleado
+    empresa_user = _empresa_usuario(pedido.empresa)
+    items = pedido.items.select_related("producto")
+    return render(
+        request,
+        "pedido_detalle.html",
+        {
+            "pedido": pedido,
+            "items": items,
+            "empleado": empleado,
+            "empresa_user": empresa_user,
+            "mensajes_empleado": _thread_pedido(pedido, pedido.cliente, empleado),
+            "mensajes_empresa": _thread_pedido(pedido, pedido.cliente, empresa_user),
+            "es_cliente": es_cliente,
+            "es_empleado": es_empleado,
+            "es_responsable": es_responsable,
+            "es_empresa": es_empresa,
+            "puede_enviar_empleado": (es_cliente and empleado is not None) or es_responsable,
+            "puede_enviar_empresa": (es_cliente and empresa_user is not None) or es_empresa,
+        },
     )
-    messages.success(request, f"Pedido realizado correctamente para {producto.nombre}.")
-    return redirect("producto_list")
+
+
+@login_required
+def pedidos_empleado(request):
+    if request.user.role != "EMPLEADO" or request.user.empresa is None:
+        messages.warning(request, "Solo empleados con empresa pueden gestionar pedidos.")
+        return redirect("producto_list")
+    empresa = request.user.empresa
+    request.user.notificaciones.filter(tipo=Notificacion.PEDIDO, leida=False).update(leida=True)
+    pool = (
+        Pedido.objects.filter(empresa=empresa, estado=Pedido.PENDIENTE, empleado__isnull=True)
+        .select_related("cliente")
+        .prefetch_related("items__producto")
+    )
+    cerca, otros = _clasificar_disponibles(
+        pool, request.user.latitud, request.user.longitud, settings.RADIO_KM
+    )
+    mis_pedidos = (
+        Pedido.objects.filter(
+            empresa=empresa,
+            empleado=request.user,
+            estado__in=[Pedido.PENDIENTE, Pedido.PROCESADO],
+        )
+        .select_related("cliente")
+        .prefetch_related("items__producto")
+    )
+    activos = _pedidos_activos_empleado(request.user)
+    return render(
+        request,
+        "pedidos_empleado.html",
+        {
+            "cerca": cerca,
+            "otros": otros,
+            "mis_pedidos": mis_pedidos,
+            "activos": activos,
+            "al_limite": activos >= settings.LIMITE_PEDIDOS_EMPLEADO,
+            "limite": settings.LIMITE_PEDIDOS_EMPLEADO,
+            "radio_km": settings.RADIO_KM,
+            "tiene_ubicacion": _coordenadas_validas(request.user.latitud, request.user.longitud),
+        },
+    )
+
+
+@login_required
+@require_POST
+def tomar_pedido(request, pk):
+    if request.user.role != "EMPLEADO" or request.user.empresa is None:
+        messages.warning(request, "Solo empleados con empresa pueden tomar pedidos.")
+        return redirect("producto_list")
+    pedido = get_object_or_404(
+        Pedido, pk=pk, empresa=request.user.empresa, estado=Pedido.PENDIENTE, empleado__isnull=True
+    )
+    if _pedidos_activos_empleado(request.user) >= settings.LIMITE_PEDIDOS_EMPLEADO:
+        messages.error(
+            request,
+            "Ya tienes el máximo de pedidos a cargo ({lim}). "
+            "Termina o libera uno antes de tomar otro.".format(lim=settings.LIMITE_PEDIDOS_EMPLEADO),
+        )
+        return redirect("pedidos_empleado")
+    pedido.empleado = request.user
+    pedido.save(update_fields=["empleado", "fecha_actualizacion"])
+    messages.success(request, f"Has tomado el pedido #{pedido.pk}. Ahora está a tu cargo.")
+    return redirect("pedidos_empleado")
+
+
+@login_required
+@require_POST
+def liberar_pedido(request, pk):
+    if request.user.role != "EMPLEADO" or request.user.empresa is None:
+        messages.warning(request, "Solo empleados con empresa pueden liberar pedidos.")
+        return redirect("producto_list")
+    pedido = get_object_or_404(Pedido, pk=pk, empresa=request.user.empresa, empleado=request.user)
+    if pedido.estado not in {Pedido.PENDIENTE, Pedido.PROCESADO}:
+        messages.warning(request, "Este pedido ya está entregado o cancelado; no se puede liberar.")
+        return redirect("pedidos_empleado")
+    motivo = (request.POST.get("motivo") or "").strip()
+    if not motivo:
+        messages.error(request, "Indica el motivo para liberar el pedido.")
+        return redirect("pedido_detalle", pk=pedido.pk)
+    titulo = f"Pedido #{pedido.pk} liberado"
+    texto = (
+        f"{request.user.get_full_name() or request.user.username} "
+        f"no puede realizar tu pedido #{pedido.pk}. Motivo: {motivo}"
+    )
+    empresa_user = _empresa_usuario(pedido.empresa)
+    for destinatario in (pedido.cliente, empresa_user):
+        if destinatario is None:
+            continue
+        notif, _ = Notificacion.objects.get_or_create(
+            usuario=destinatario,
+            tipo=Notificacion.PEDIDO,
+            pedido=pedido,
+            defaults={"titulo": titulo, "mensaje": texto},
+        )
+        if not notif.leida:
+            notif.titulo = titulo
+            notif.mensaje = texto
+            notif.save(update_fields=["titulo", "mensaje"])
+    pedido.empleado = None
+    pedido.estado = Pedido.PENDIENTE
+    pedido.save(update_fields=["empleado", "estado", "fecha_actualizacion"])
+    messages.success(
+        request,
+        f"Pedido #{pedido.pk} liberado. Se notificó a la empresa y al cliente del cambio.",
+    )
+    return redirect("pedidos_empleado")
+
+
+@login_required
+@require_POST
+def guardar_ubicacion(request):
+    if request.user.role != "EMPLEADO" or request.user.empresa is None:
+        messages.warning(request, "Solo empleados pueden guardar su ubicación.")
+        return redirect("producto_list")
+    lat = (request.POST.get("latitud") or "").strip()
+    lon = (request.POST.get("longitud") or "").strip()
+    if not _coordenadas_validas(lat, lon):
+        messages.error(request, "Coordenadas no válidas. Indica latitud (-90 a 90) y longitud (-180 a 180).")
+        return redirect("pedidos_empleado")
+    request.user.latitud = lat
+    request.user.longitud = lon
+    request.user.save(update_fields=["latitud", "longitud"])
+    messages.success(request, "Ubicación guardada. Ahora podrás ver los pedidos cerca de ti.")
+    return redirect("pedidos_empleado")
+
+
+@login_required
+@require_POST
+def procesar_pedido(request, pk):
+    if request.user.role != "EMPLEADO" or request.user.empresa is None:
+        messages.warning(request, "Solo empleados con empresa pueden procesar pedidos.")
+        return redirect("producto_list")
+    pedido = get_object_or_404(Pedido, pk=pk, empresa=request.user.empresa)
+    if pedido.empleado != request.user:
+        messages.warning(
+            request,
+            "Solo el empleado que tomó este pedido puede procesarlo.",
+        )
+        return redirect("pedidos_empleado")
+    if pedido.estado != Pedido.PENDIENTE:
+        messages.warning(request, "Este pedido ya no está pendiente de procesar.")
+        return redirect("pedidos_empleado")
+    sin_stock = [item for item in pedido.items.all() if item.cantidad > item.producto.cantidad_stock]
+    if sin_stock:
+        nombres = ", ".join(i.producto.nombre for i in sin_stock)
+        messages.error(request, f"No hay suficiente stock para: {nombres}. Repón el inventario antes de procesar.")
+        return redirect("pedido_detalle", pk=pedido.pk)
+    with transaction.atomic():
+        for item in pedido.items.select_related("producto"):
+            producto = item.producto
+            producto.cantidad_stock -= item.cantidad
+            producto.save(update_fields=["cantidad_stock"])
+            Movimiento.objects.create(
+                producto=producto,
+                tipo_movimiento=Movimiento.TIPO_SALIDA,
+                cantidad=item.cantidad,
+                usuario=request.user,
+                nota=f"Pedido #{pedido.pk} procesado por {request.user.username}",
+            )
+        pedido.empleado = request.user
+        pedido.estado = Pedido.PROCESADO
+        pedido.save(update_fields=["empleado", "estado", "fecha_actualizacion"])
+    pedido.notificaciones.filter(tipo=Notificacion.PEDIDO, leida=False).update(leida=True)
+    messages.success(request, f"Pedido #{pedido.pk} procesado correctamente; el stock fue descontado.")
+    return redirect("pedidos_empleado")
+
+
+@login_required
+def pedidos_empresa(request):
+    if request.user.role != "EMPRESA" or request.user.empresa is None:
+        messages.warning(request, "Solo la empresa puede supervisar pedidos.")
+        return redirect("dashboard")
+    request.user.notificaciones.filter(tipo=Notificacion.PEDIDO, leida=False).update(leida=True)
+    empresa = request.user.empresa
+    pedidos = (
+        Pedido.objects.filter(empresa=empresa)
+        .select_related("cliente", "empleado")
+        .prefetch_related("items__producto")
+    )
+    total = pedidos.count()
+    pendientes = pedidos.filter(estado="PENDIENTE").count()
+    en_proceso = pedidos.filter(estado__in=["PROCESADO", "ENTREGADO"]).count()
+    cancelados = pedidos.filter(estado="CANCELADO").count()
+    return render(
+        request,
+        "pedidos_empresa.html",
+        {
+            "pedidos": pedidos,
+            "total_pedidos": total,
+            "pendientes": pendientes,
+            "en_proceso": en_proceso,
+            "cancelados": cancelados,
+        },
+    )
+
+
+@login_required
+@require_POST
+def cambiar_estado_pedido(request, pk, estado):
+    es_empresa = request.user.role == "EMPRESA" and request.user.empresa is not None
+    es_empleado = request.user.role == "EMPLEADO" and request.user.empresa is not None
+    if not (es_empresa or es_empleado):
+        messages.warning(request, "No tienes permisos para cambiar el estado del pedido.")
+        return redirect("producto_list")
+    if estado not in {Pedido.ENTREGADO, Pedido.CANCELADO}:
+        messages.error(request, "Estado no permitido.")
+        return redirect("producto_list")
+    pedido = get_object_or_404(Pedido, pk=pk, empresa=request.user.empresa)
+    if not pedido.transicion_valida(estado):
+        labels = dict(Pedido.ESTADO_CHOICES)
+        messages.error(
+            request,
+            f"No se puede pasar de {pedido.get_estado_display()} a {labels[estado]}.",
+        )
+        return redirect("pedido_detalle", pk=pedido.pk)
+    pedido.estado = estado
+    pedido.save(update_fields=["estado", "fecha_actualizacion"])
+    pedido.notificaciones.filter(tipo=Notificacion.PEDIDO, leida=False).update(leida=True)
+    messages.success(request, f"Pedido #{pedido.pk} marcado como {pedido.get_estado_display()}.")
+    destino = "pedidos_empresa" if es_empresa else "pedidos_empleado"
+    return redirect(destino)
+
+
+from functools import wraps
+from django.http import Http404, JsonResponse
+from django.views.decorators.http import require_POST
+
+from .models import TokenEmpresa
+
+
+def _empresa_desde_token(request):
+    valor = None
+    auth = request.META.get("HTTP_AUTHORIZATION", "")
+    if auth.lower().startswith("token "):
+        valor = auth[6:].strip()
+    if not valor:
+        valor = request.GET.get("token") or request.headers.get("X-Api-Key")
+    if not valor:
+        return None
+    instancia = TokenEmpresa.objects.select_related("usuario").filter(
+        token=valor, usuario__role="EMPRESA", usuario__empresa__isnull=False
+    ).first()
+    return instancia
+
+
+def token_empresa_requerido(vista):
+    @wraps(vista)
+    def _envoltura(request, *args, **kwargs):
+        instancia = _empresa_desde_token(request)
+        if instancia is None:
+            if request.headers.get("accept") == "application/json" or request.path.startswith("/api/"):
+                return JsonResponse(
+                    {"error": "Token de acceso inválido o no autorizado."},
+                    status=401,
+                )
+            raise Http404
+        request.token_empresa = instancia
+        request.api_empresa = instancia.usuario.empresa
+        return vista(request, *args, **kwargs)
+
+    return _envoltura
+
+
+@login_required
+def token_empresa_gestion(request):
+    if request.user.role != "EMPRESA" or not request.user.empresa:
+        messages.warning(request, "Solo las empresas pueden gestionar su token de acceso.")
+        return redirect("producto_list")
+
+    if request.method == "POST":
+        accion = request.POST.get("accion", "regenerar")
+        instancia, _ = TokenEmpresa.generar(
+            request.user,
+            descripcion=request.POST.get("descripcion", "").strip(),
+        )
+        if accion == "regenerar":
+            messages.success(request, "Token regenerado. Guarda la información en un lugar seguro.")
+        else:
+            messages.success(request, "Token de acceso actualizado.")
+        return redirect("token_empresa_gestion")
+
+    instancia = TokenEmpresa.objects.filter(usuario=request.user).first()
+    contexto = {
+        "token_activo": instancia,
+    }
+    return render(request, "token_empresa.html", contexto)
+
+
+@token_empresa_requerido
+def api_datos_empresa(request):
+    empresa = request.api_empresa
+    pedidos = Pedido.objects.filter(empresa=empresa)
+    pedidos_activos = pedidos.exclude(estado__in=[Pedido.ENTREGADO, Pedido.CANCELADO]).count()
+    datos = {
+        "empresa": {
+            "id": empresa.pk,
+            "nombre": empresa.nombre,
+            "descripcion": empresa.descripcion,
+            "telefono": empresa.telefono,
+            "email": empresa.email,
+            "instagram": empresa.instagram,
+            "pagina_web": empresa.pagina_web,
+        },
+        "kpis": {
+            "total_pedidos": pedidos.count(),
+            "pendientes": pedidos.filter(estado=Pedido.PENDIENTE).count(),
+            "procesados": pedidos.filter(estado=Pedido.PROCESADO).count(),
+            "entregados": pedidos.filter(estado=Pedido.ENTREGADO).count(),
+            "cancelados": pedidos.filter(estado=Pedido.CANCELADO).count(),
+            "pedidos_activos": pedidos_activos,
+        },
+        "empleados": list(
+            CustomUser.objects.filter(empresa=empresa, role="EMPLEADO").values_list("username", flat=True)
+        ),
+    }
+    return JsonResponse(datos)
+
+
+@token_empresa_requerido
+def api_pedidos_empresa(request):
+    empresa = request.api_empresa
+    pedidos = (
+        Pedido.objects.filter(empresa=empresa)
+        .select_related("cliente", "empleado")
+        .order_by("-fecha_creacion")
+        [:50]
+    )
+    datos = [
+        {
+            "id": p.pk,
+            "estado": p.estado,
+            "total": str(p.total),
+            "cliente": p.cliente.username if p.cliente else None,
+            "empleado": p.empleado.username if p.empleado else None,
+            "items": [
+                {"producto": i.producto.nombre, "cantidad": i.cantidad, "precio": str(i.precio)}
+                for i in p.items.all()
+            ],
+        }
+        for p in pedidos
+    ]
+    return JsonResponse({"pedidos": datos})

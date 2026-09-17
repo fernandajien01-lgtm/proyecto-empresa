@@ -20,34 +20,451 @@
         color: #ffb703;
     }
     .rating-display { color: #ffb703; letter-spacing: 2px; }
+
+    .explorer-title {
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .mini-search {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        position: relative;
+        max-width: 460px;
+        width: 100%;
+        padding: .35rem .25rem;
+        color: #94a3b8;
+        border-bottom: 2px solid #cbd5e1;
+        transition: color .25s ease;
+    }
+    .mini-search::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: -2px;
+        height: 2px;
+        width: 100%;
+        background: linear-gradient(90deg, #0ea5e9, #6366f1, #fbbf24);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform .35s ease;
+    }
+    .mini-search:focus-within {
+        color: #0ea5e9;
+    }
+    .mini-search:focus-within::after {
+        transform: scaleX(1);
+    }
+    .mini-search svg {
+        transition: transform .25s ease;
+    }
+    .mini-search:focus-within svg {
+        transform: scale(1.15) rotate(-10deg);
+    }
+    .mini-search input {
+        flex: 1;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #0f172a;
+        outline: none;
+    }
+    .mini-search input::placeholder {
+        color: #64748b;
+        font-weight: 500;
+    }
+    .mini-clear {
+        font-size: .8rem;
+        font-weight: 700;
+        text-decoration: none;
+        color: #6366f1;
+        padding: .15rem .55rem;
+        border-radius: 9999px;
+        transition: background .2s ease, color .2s ease;
+    }
+    .mini-clear:hover {
+        background: rgba(99, 102, 241, .12);
+        color: #4338ca;
+    }
+    .chip-cloud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+        justify-content: center;
+    }
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: .45rem 1.1rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: .875rem;
+        color: #475569;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        text-decoration: none;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, color .2s ease, background .2s ease;
+        animation: chipIn .45s ease backwards;
+    }
+    .chip:nth-child(1) { animation-delay: 0s; }
+    .chip:nth-child(2) { animation-delay: .05s; }
+    .chip:nth-child(3) { animation-delay: .1s; }
+    .chip:nth-child(4) { animation-delay: .15s; }
+    .chip:nth-child(5) { animation-delay: .2s; }
+    .chip:nth-child(6) { animation-delay: .25s; }
+    .chip:nth-child(7) { animation-delay: .3s; }
+    .chip:nth-child(8) { animation-delay: .35s; }
+    .chip:nth-child(9) { animation-delay: .4s; }
+    .chip:nth-child(10) { animation-delay: .45s; }
+    .chip:nth-child(n+11) { animation-delay: .5s; }
+    @keyframes chipIn {
+        from { opacity: 0; transform: translateY(12px) scale(.9); }
+        to { opacity: 1; transform: none; }
+    }
+    .chip:hover {
+        transform: translateY(-2px);
+        border-color: #38bdf8;
+        color: #0ea5e9;
+        box-shadow: 0 6px 16px rgba(56, 189, 248, .35);
+    }
+    .chip-active {
+        color: #ffffff !important;
+        background: linear-gradient(120deg, #0ea5e9, #6366f1);
+        border-color: transparent;
+        box-shadow: 0 6px 16px rgba(56, 189, 248, .45);
+    }
+    .chip-active:hover {
+        color: #ffffff;
+        filter: brightness(1.08);
+    }
+    html[data-theme="dark"] .mini-search {
+        border-bottom-color: #334155;
+    }
+    html[data-theme="dark"] .mini-search input {
+        color: #e2e8f0;
+    }
+    html[data-theme="dark"] .chip {
+        background: #0f172a;
+        border-color: #334155;
+        color: #cbd5e1;
+    }
+    html[data-theme="dark"] .chip-active {
+        background: linear-gradient(120deg, #0ea5e9, #6366f1);
+        color: #ffffff !important;
+        border-color: transparent;
+    }
+
+    .btn-comentar {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        background: linear-gradient(120deg, #fbbf24, #f59e0b);
+        border: 0;
+        color: #111827;
+        font-weight: 800;
+        font-size: .95rem;
+        border-radius: .8rem;
+        padding: .55rem 1rem;
+        box-shadow: 0 5px 14px rgba(255, 183, 3, .35);
+        transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+    }
+    .btn-comentar svg {
+        transition: transform .2s ease;
+    }
+    .btn-comentar:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.06);
+        box-shadow: 0 8px 20px rgba(255, 183, 3, .5);
+    }
+    .btn-comentar:hover svg {
+        transform: rotate(-15deg) scale(1.12);
+    }
+    html[data-theme="dark"] .btn-comentar {
+        color: #111827;
+    }
+    .comment-form {
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        background: #f8fafc;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+    }
+    html[data-theme="dark"] .comment-form {
+        background: #0b1220;
+        border-color: #334155;
+    }
+    .comments-head h6 {
+        letter-spacing: .02em;
+    }
+    .comments-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 26px;
+        height: 26px;
+        padding: 0 .55rem;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        color: #ffffff;
+        background: linear-gradient(120deg, #0ea5e9, #6366f1);
+        box-shadow: 0 3px 10px rgba(56, 189, 248, .4);
+        animation: countPop .5s ease;
+    }
+    @keyframes countPop {
+        0% { transform: scale(0); }
+        80% { transform: scale(1.15); }
+        100% { transform: scale(1); }
+    }
+    .post-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        padding: .85rem 1rem;
+        margin-bottom: .8rem;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, .05);
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+        animation: postIn .45s ease backwards;
+    }
+    .post-card:nth-of-type(1) { animation-delay: .02s; }
+    .post-card:nth-of-type(2) { animation-delay: .06s; }
+    .post-card:nth-of-type(3) { animation-delay: .1s; }
+    .post-card:nth-of-type(4) { animation-delay: .14s; }
+    .post-card:nth-of-type(5) { animation-delay: .18s; }
+    .post-card:nth-of-type(6) { animation-delay: .22s; }
+    .post-card:nth-of-type(7) { animation-delay: .26s; }
+    .post-card:nth-of-type(8) { animation-delay: .3s; }
+    .post-card:nth-of-type(n+9) { animation-delay: .34s; }
+    @keyframes postIn {
+        from { opacity: 0; transform: translateY(10px) scale(.98); }
+        to { opacity: 1; transform: none; }
+    }
+    .post-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(56, 189, 248, .16);
+        border-color: #bae6fd;
+    }
+    html[data-theme="dark"] .post-card {
+        background: #0f172a;
+        border-color: #334155;
+    }
+    .post-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        font-weight: 800;
+        font-size: .95rem;
+        background: linear-gradient(135deg, #0ea5e9, #6366f1);
+        box-shadow: 0 2px 8px rgba(56, 189, 248, .4);
+        flex-shrink: 0;
+    }
+    .post-card:nth-of-type(even) .post-avatar {
+        background: linear-gradient(135deg, #f97316, #f59e0b);
+        box-shadow: 0 2px 8px rgba(251, 191, 36, .4);
+    }
+    .post-card:nth-of-type(3n) .post-avatar {
+        background: linear-gradient(135deg, #10b981, #0ea5e9);
+        box-shadow: 0 2px 8px rgba(16, 185, 129, .4);
+    }
+    .post-date {
+        font-size: .72rem;
+        color: #64748b;
+    }
+    .rating-display {
+        color: #f59e0b;
+        text-shadow: 0 0 8px rgba(255, 183, 3, .35);
+        font-weight: 600;
+    }
+    .post-text {
+        margin: .35rem 0 .65rem;
+        white-space: pre-line;
+    }
+    .react-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .28rem .75rem;
+        border-radius: 999px;
+        font-size: .8rem;
+        font-weight: 700;
+        text-decoration: none;
+        border: 1px solid;
+        transition: transform .18s ease, box-shadow .18s ease, background .18s ease, color .18s ease;
+    }
+    .react-btn svg {
+        transition: transform .18s ease;
+    }
+    .react-btn:hover svg {
+        transform: translateY(-1px) scale(1.18);
+    }
+    .react-like {
+        color: #0284c7;
+        border-color: #bae6fd;
+        background: #f0f9ff;
+    }
+    .react-like:hover {
+        background: #0ea5e9;
+        color: #ffffff;
+        border-color: #0ea5e9;
+        box-shadow: 0 4px 12px rgba(14, 165, 233, .4);
+        transform: translateY(-1px);
+    }
+    .react-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 .35rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        background: #ffffff;
+        color: #0284c7;
+    }
+    .react-like:hover .react-count {
+        color: #ffffff;
+    }
+    .react-dislike {
+        color: #b91c1c;
+        border-color: #fecaca;
+        background: #fef2f2;
+    }
+    .react-dislike:hover {
+        background: #ef4444;
+        color: #ffffff;
+        border-color: #ef4444;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, .4);
+        transform: translateY(-1px);
+    }
+    .react-edit {
+        color: #64748b;
+        border-color: #cbd5e1;
+        background: transparent;
+    }
+    .react-edit:hover {
+        color: #0f172a;
+        border-color: #94a3b8;
+        background: #f1f5f9;
+        transform: translateY(-1px);
+    }
+    html[data-theme="dark"] .react-like {
+        background: #082f49;
+        border-color: #0c4a6e;
+        color: #7dd3fc;
+    }
+    html[data-theme="dark"] .react-like:hover {
+        background: #0ea5e9;
+        color: #ffffff;
+    }
+    html[data-theme="dark"] .react-count {
+        color: #111827;
+    }
+    html[data-theme="dark"] .react-dislike {
+        background: #450a0a;
+        border-color: #7f1d1d;
+        color: #fca5a5;
+    }
+    html[data-theme="dark"] .react-dislike:hover {
+        background: #ef4444;
+        color: #ffffff;
+    }
+    html[data-theme="dark"] .react-edit {
+        color: #94a3b8;
+        border-color: #475569;
+        background: transparent;
+    }
+    html[data-theme="dark"] .react-edit:hover {
+        color: #ffffff;
+        background: #1e293b;
+        border-color: #64748b;
+    }
+    .empty-comments {
+        border: 2px dashed #cbd5e1;
+        border-radius: 1rem;
+        padding: 1.25rem;
+        text-align: center;
+        color: #64748b;
+        background: rgba(148, 163, 184, .06);
+    }
+    .empty-comments p {
+        margin: .4rem 0 0;
+    }
+    .empty-comments svg {
+        color: #94a3b8;
+    }
+    html[data-theme="dark"] .empty-comments {
+        border-color: #334155;
+        color: #94a3b8;
+        background: rgba(15, 23, 42, .4);
+    }
 </style>
-{% if user.is_authenticated and user.role != 'EMPRESA' %}
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label for="empresa" class="form-label fw-semibold">Buscar empresa</label>
-                <input type="text" id="empresa" name="empresa" value="{{ busqueda_empresa }}" class="form-control" placeholder="Ej. Nike, Ferretería X, etc." spellcheck="true">
-            </div>
-            <div class="col-md-4">
-                <label for="categoria" class="form-label fw-semibold">Categoría</label>
-                <select id="categoria" name="categoria" class="form-select">
-                    <option value="">Todas</option>
-                    {% for cat in categorias %}
-                        <option value="{{ cat.nombre }}" {% if busqueda_categoria == cat.nombre %}selected{% endif %}>{{ cat.nombre }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label for="producto" class="form-label fw-semibold">Nombre del producto</label>
-                <input type="text" id="producto" name="producto" value="{{ busqueda_producto }}" class="form-control" placeholder="Ej. camiseta, peine" spellcheck="true">
-            </div>
-            <div class="col-md-1 d-flex">
-                <button type="submit" class="btn btn-primary-custom w-100 align-self-end">Buscar</button>
-            </div>
-        </form>
+<section class="catalog-explorer mb-4">
+    <div class="text-center mb-3">
+        <h2 class="explorer-title fw-bold mb-1">Catálogo de productos</h2>
+        <p class="text-muted mb-0">Explora por categoría o busca un producto.</p>
     </div>
-</div>
+
+    <div class="d-flex flex-column align-items-center gap-3">
+        <form method="get" class="mini-search" role="search">
+            <svg class="ms-1" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="search" name="producto" value="{{ busqueda_producto }}" placeholder="Buscar producto…" aria-label="Buscar productos" autocomplete="off">
+            {% if busqueda_producto or busqueda_categoria %}
+                <a href="{% url 'producto_list' %}" class="mini-clear" title="Limpiar filtros">Limpiar</a>
+            {% endif %}
+        </form>
+
+        <div class="chip-cloud" role="group" aria-label="Filtrar por categoría">
+            <a class="chip {% if not busqueda_categoria %}chip-active{% endif %}" href="{% url 'producto_list' %}?producto={{ busqueda_producto|urlencode }}">Todas las categorías</a>
+            {% for cat in categorias %}
+                <a class="chip {% if busqueda_categoria == cat.nombre %}chip-active{% endif %}" href="{% url 'producto_list' %}?producto={{ busqueda_producto|urlencode }}&amp;categoria={{ cat.nombre|urlencode }}">{{ cat.nombre }}</a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+{% if mis_productos %}
+    <div class="mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <h3 class="h5 fw-bold mb-0">Mis productos <span class="text-muted small fw-normal">(verás aquí el estado de aprobación)</span></h3>
+            <a href="{% url 'gestionar_categorias' %}" class="btn btn-sm btn-outline-secondary">Gestionar categorías</a>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            {% for mp in mis_productos %}
+                <div class="card shadow-sm border-0" style="min-width:240px;">
+                    <div class="card-body d-flex flex-column gap-2">
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <strong class="text-truncate">{{ mp.nombre }}</strong>
+                            {% if mp.estado == 'PENDIENTE' %}
+                                <span class="badge bg-warning text-dark">Pendiente</span>
+                            {% elif mp.estado == 'RECHAZADO' %}
+                                <span class="badge bg-danger">Rechazado</span>
+                            {% else %}
+                                <span class="badge bg-success">Aprobado</span>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'producto_editar' mp.id %}" class="btn btn-sm btn-outline-primary flex-grow-1">Editar</a>
+                            <form method="post" action="{% url 'producto_eliminar' mp.id %}" onsubmit="return confirm('¿Seguro que deseas eliminar este producto?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">&times;</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-muted mb-0">Aún no has creado productos.</p>
+            {% endfor %}
+        </div>
+    </div>
 {% endif %}
 
 {% if empresas_data %}
@@ -137,6 +554,9 @@
                             {% else %}
                                 <span class="badge badge-ok rounded-pill">Disponible</span>
                             {% endif %}
+                            {% if producto.estado != 'APROBADO' %}
+                                <span class="badge {% if producto.estado == 'PENDIENTE' %}bg-warning text-dark{% else %}bg-danger{% endif %} rounded-pill">{{ producto.get_estado_display }}</span>
+                            {% endif %}
                         </div>
                     </div>
                     <p class="text-muted small mb-1">Empresa: <strong>{{ producto.empresa.nombre }}</strong></p>
@@ -149,25 +569,39 @@
 
                     {% if user.is_authenticated and user.role != 'EMPRESA' %}
                         <div class="d-flex gap-2 mb-3">
-                            <a href="{% url 'reaccion_producto' producto.id 'LIKE' %}" class="btn btn-outline-primary btn-sm">👍 Like</a>
+                            <a href="{% url 'reaccion_producto' producto.id 'LIKE' %}" class="react-btn react-like" title="Me gusta">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                                Me gusta <span class="react-count">{{ producto.likes_count }}</span>
+                            </a>
                         </div>
                     {% endif %}
 
                     {% if user.is_authenticated and user.role != 'EMPRESA' %}
-                        <button type="button" class="btn btn-warning w-100 mb-2" data-bs-toggle="collapse" data-bs-target="#comentario-{{ producto.id }}" style="background-color: #ffb703; border-color: #ffb703; color: #111827; font-weight: 800; box-shadow: 0 4px 10px rgba(255, 183, 3, 0.35);">
+                        <button type="button" class="btn btn-comentar w-100 mb-2" data-bs-toggle="collapse" data-bs-target="#comentario-{{ producto.id }}" aria-expanded="false" aria-controls="comentario-{{ producto.id }}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                             Comentar
                         </button>
                     {% elif not user.is_authenticated %}
-                        <a href="{% url 'register' %}?next={{ request.path }}" class="btn btn-warning w-100 mb-2" style="background-color: #ffb703; border-color: #ffb703; color: #111827; font-weight: 800; box-shadow: 0 4px 10px rgba(255, 183, 3, 0.35);">Registrarse para comentar</a>
+                        <a href="{% url 'register' %}?next={{ request.path }}" class="btn btn-comentar w-100 mb-2">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                            Registrarse para comentar
+                        </a>
                     {% endif %}
 
                     {% if user.is_authenticated and user.role == 'CLIENTE' %}
-                        <a href="{% url 'realizar_pedido' producto.pk %}" class="btn btn-primary-custom btn-sm w-100 mt-2">Comprar</a>
+                        <div class="d-grid gap-2 mt-2">
+                            <a href="{% url 'realizar_pedido' producto.pk %}" class="btn btn-primary-custom btn-sm w-100">Comprar ahora</a>
+<form method="post" action="{% url 'carrito_agregar' producto.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="cantidad" value="1">
+                                <button type="submit" class="btn btn-outline-primary btn-sm w-100">Agregar al carrito</button>
+                            </form>
+                        </div>
                     {% endif %}
 
                     {% if user.is_authenticated and user.role != 'EMPRESA' %}
                         <div id="comentario-{{ producto.id }}" class="collapse mt-3">
-                            <form method="post" class="border rounded p-3 bg-light">
+                            <form method="post" class="comment-form p-3">
                                 {% csrf_token %}
                                 <input type="hidden" name="producto_id" value="{{ producto.id }}">
                                 <label class="form-label small fw-semibold mb-1">Calificación</label>
@@ -189,23 +623,46 @@
                         </div>
                     {% endif %}
 
-                    <div class="mt-3">
-                        <h6>Comentarios</h6>
+                    <div class="mt-4">
+                        <div class="comments-head d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="mb-0 fw-bold">Comentarios</h6>
+                            <span class="comments-count">{{ producto.reseñas.all|length }}</span>
+                        </div>
                         {% for resena in producto.reseñas.all %}
-                            <div class="border rounded p-2 mb-2">
-                                <div class="d-flex justify-content-between small">
-                                    <strong>{% if resena.autor %}{{ resena.autor.username }}{% else %}{{ resena.nombre_anonimo }}{% endif %}</strong>
-                                    <span class="text-muted">{{ resena.fecha_creacion|date:"d/m/Y" }}</span>
+                            {% with resena_nombre=resena.autor.username|default:resena.nombre_anonimo %}
+                            <article class="post-card">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="post-avatar">{{ resena_nombre|first|upper }}</span>
+                                    <div class="d-flex flex-column" style="line-height:1.15;">
+                                        <strong class="small">{{ resena_nombre }}</strong>
+                                        <span class="post-date">{% if resena.autor %}{{ resena.autor.role|title }}{% else %}Anónimo{% endif %} · {{ resena.fecha_creacion|date:"d/m/Y" }}</span>
+                                    </div>
                                 </div>
                                 <div class="small mb-1 rating-display">{% for i in "12345" %}{% if forloop.counter <= resena.calificacion %}★{% else %}☆{% endif %}{% endfor %} <span class="text-muted">({{ resena.calificacion }}/5)</span></div>
-                                <p class="mb-2 mt-1 small">{{ resena.contenido }}</p>
+                                <p class="post-text small">{{ resena.contenido }}</p>
                                 <div class="d-flex gap-2">
-                                    <a href="{% url 'reaccion_resena' resena.id 'LIKE' %}" class="btn btn-link btn-sm p-0">👍 {{ resena.reacciones.all|length }}</a>
-                                    <a href="{% url 'reaccion_resena' resena.id 'DISLIKE' %}" class="btn btn-link btn-sm p-0">👎 {{ resena.reacciones.all|length }}</a>
+                                    <a href="{% url 'reaccion_resena' resena.id 'LIKE' %}" class="react-btn react-like">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                                        {{ resena.likes_count }}
+                                    </a>
+                                    <a href="{% url 'reaccion_resena' resena.id 'DISLIKE' %}" class="react-btn react-dislike">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
+                                        {{ resena.dislikes_count }}
+                                    </a>
+                                    {% if resena.autor == user and resena.puede_editar %}
+                                        <a href="{% url 'resena_editar' resena.id %}" class="react-btn react-edit ms-auto">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                            Editar
+                                        </a>
+                                    {% endif %}
                                 </div>
-                            </div>
+                            </article>
+                            {% endwith %}
                         {% empty %}
-                            <p class="text-muted small mb-0">Sin comentarios todavía.</p>
+                            <div class="empty-comments">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                <p>Sin comentarios todavía. Sé el primero en opinar.</p>
+                            </div>
                         {% endfor %}
                     </div>
                 </div>

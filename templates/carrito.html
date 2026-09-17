@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}Carrito de compras{% endblock %}
+
+{% block content %}
+<style>
+    .cart-title {
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .cart-count-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 26px;
+        height: 26px;
+        padding: 0 .55rem;
+        border-radius: 999px;
+        font-size: .8rem;
+        font-weight: 800;
+        color: #ffffff;
+        background: linear-gradient(120deg, #fbbf24, #f59e0b);
+        box-shadow: 0 3px 10px rgba(251, 191, 36, .4);
+    }
+    .cart-item {
+        border-radius: 1rem;
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .cart-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(56, 189, 248, .16);
+        border-color: #bae6fd;
+    }
+    .cart-qty {
+        max-width: 90px;
+        text-align: center;
+        font-weight: 700;
+    }
+    .qty-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 9999px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        font-weight: 800;
+        font-size: 1rem;
+        line-height: 1;
+        transition: background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .qty-btn:hover {
+        background: #0ea5e9;
+        border-color: #0ea5e9;
+        color: #ffffff;
+        transform: scale(1.1);
+    }
+    html[data-theme="dark"] .cart-item {
+        background: #0f172a;
+        border-color: #334155;
+    }
+    html[data-theme="dark"] .qty-btn {
+        background: #0f172a;
+        border-color: #475569;
+        color: #e2e8f0;
+    }
+    .summary-card {
+        border-radius: 1rem;
+        background: linear-gradient(135deg, #f8fafc, #eef2ff);
+        border: 1px solid #e2e8f0;
+    }
+    html[data-theme="dark"] .summary-card {
+        background: linear-gradient(135deg, #0f172a, #1e1b4b);
+        border-color: #334155;
+    }
+    .btn-finalizar {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        border: 0;
+        border-radius: .8rem;
+        font-weight: 800;
+        padding: .65rem 1.2rem;
+        color: #ffffff;
+        background: linear-gradient(120deg, #0ea5e9, #6366f1);
+        box-shadow: 0 6px 16px rgba(56, 189, 248, .4);
+        transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+    }
+    .btn-finalizar:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.08);
+        box-shadow: 0 8px 22px rgba(56, 189, 248, .55);
+    }
+    .empty-cart {
+        border: 2px dashed #cbd5e1;
+        border-radius: 1rem;
+        padding: 3rem 1.5rem;
+        text-align: center;
+        color: #64748b;
+        background: rgba(148, 163, 184, .06);
+    }
+    .empty-cart svg {
+        color: #94a3b8;
+        animation: emptyFloat 3s ease-in-out infinite;
+    }
+    @keyframes emptyFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+    }
+    html[data-theme="dark"] .empty-cart {
+        border-color: #334155;
+        color: #94a3b8;
+        background: rgba(15, 23, 42, .4);
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="cart-title fw-bold mb-1">Mi carrito</h2>
+        <p class="text-muted mb-0">Revisa y ajusta los productos antes de pedirlos.</p>
+    </div>
+    {% if items %}
+        <span class="cart-count-pill">{{ items|length }} producto{% if items|length != 1 %}s{% endif %}</span>
+    {% endif %}
+</div>
+
+{% if items %}
+    <div class="row g-4">
+        <div class="col-lg-8">
+            {% for item in items %}
+                <div class="card cart-item shadow-sm border-0 mb-3">
+                    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+                        <div class="flex-grow-1" style="min-width: 200px;">
+                            <h6 class="mb-1 fw-bold">{{ item.producto.nombre }}</h6>
+                            <p class="text-muted small mb-1">{{ item.producto.empresa.nombre }} · {{ item.producto.categoria.nombre }}</p>
+                            <span class="text-muted small">Unitario: <strong>${{ item.producto.precio_venta }}</strong></span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <form method="post" action="{% url 'carrito_actualizar' item.id %}">
+                                {% csrf_token %}
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if item.cantidad > 1 %}
+                                        <button type="submit" name="cantidad" value="{{ item.cantidad|add:'-1' }}" class="qty-btn" title="Disminuir">−</button>
+                                    {% endif %}
+                                    <span class="cart-qty">{{ item.cantidad }}</span>
+                                    <button type="submit" name="cantidad" value="{{ item.cantidad|add:'1' }}" class="qty-btn" title="Aumentar">+</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="text-end" style="min-width: 90px;">
+                            <div class="fw-bold">${{ item.subtotal }}</div>
+                            <form method="post" action="{% url 'carrito_quitar' item.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-link btn-sm p-0 text-danger text-decoration-none">Quitar</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="col-lg-4">
+            <div class="card summary-card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Resumen del pedido</h5>
+                    <div class="d-flex justify-content-between mb-2 text-muted small">
+                        <span>Productos</span>
+                        <span>{{ items|length }}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fw-bold">Total</span>
+                        <span class="fw-bold fs-4">${{ total }}</span>
+                    </div>
+                    <a href="{% url 'carrito_checkout' %}" class="btn-finalizar d-grid text-center text-decoration-none">
+                            <span class="d-inline-flex align-items-center justify-content-center gap-2">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                Continuar con el pago
+                            </span>
+                        </a>
+                    <a href="{% url 'producto_list' %}" class="btn btn-link btn-sm w-100 mt-2 text-decoration-none">Seguir comprando</a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="empty-cart">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+        <h5 class="fw-bold mt-3 mb-1">Tu carrito está vacío</h5>
+        <p class="mb-4">Explora el catálogo y agrega productos.</p>
+        <a href="{% url 'producto_list' %}" class="btn btn-primary-custom">Ir al catálogo</a>
+    </div>
+{% endif %}
+{% endblock %}

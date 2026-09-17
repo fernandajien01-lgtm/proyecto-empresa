@@ -34,14 +34,16 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
+"OPTIONS": {
+                "context_processors": [
+                    "django.template.context_processors.debug",
+                    "django.template.context_processors.request",
+                    "django.contrib.auth.context_processors.auth",
+                    "django.contrib.messages.context_processors.messages",
+                    "inventario.context_processors.carrito_count",
+                    "inventario.context_processors.notificaciones_empleado",
+                ],
+            },
     },
 ]
 
@@ -70,6 +72,12 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+FORM_RENDERER = "inventario.renderers.InventarioFormRenderer"
+
+# Radio (km) para mostrar al empleado los pedidos "cerca de su ubicación".
+RADIO_KM = int(os.getenv("RADIO_KM", "10"))
+# Máximo de pedidos activos (pendiente + procesado) que un empleado puede tener a cargo.
+LIMITE_PEDIDOS_EMPLEADO = int(os.getenv("LIMITE_PEDIDOS_EMPLEADO", "7"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -77,6 +85,9 @@ AUTH_USER_MODEL = "inventario.CustomUser"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
+
+# La sesión caduca al cerrar el navegador (no recuerda el usuario en la siguiente visita).
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 def _load_env_file():
     env_file = BASE_DIR / ".env"

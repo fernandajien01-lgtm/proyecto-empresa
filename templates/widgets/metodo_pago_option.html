@@ -1,0 +1,5 @@
+<label class="metodo-pago-card{% if widget.selected %} is-selected{% endif %}">
+    {% include "django/forms/widgets/input.html" %}
+    {% include "includes/metodo_pago_svg.html" with value=widget.value %}
+    <span class="mp-titulo">{{ widget.label }}</span>
+</label>

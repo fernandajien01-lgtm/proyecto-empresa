@@ -1,0 +1,290 @@
+{% extends 'base.html' %}
+
+{% block title %}Pagar pedido{% endblock %}
+
+{% block content %}
+<style>
+    .checkout-title {
+        background: linear-gradient(90deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .pay-group {
+        border-radius: 1rem;
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .pay-group:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(56, 189, 248, .16);
+    }
+    .sum-card {
+        border-radius: 1rem;
+        background: linear-gradient(135deg, #f8fafc, #eef2ff);
+        border: 1px solid #e2e8f0;
+    }
+    html[data-theme="dark"] .pay-group {
+        background: #0f172a;
+        border-color: #334155;
+    }
+    html[data-theme="dark"] .sum-card {
+        background: linear-gradient(135deg, #0f172a, #1e1b4b);
+        border-color: #334155;
+    }
+    .btn-pagar {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .5rem;
+        border: 0;
+        border-radius: .8rem;
+        font-weight: 800;
+        padding: .65rem 1.2rem;
+        color: #ffffff;
+        background: linear-gradient(120deg, #0ea5e9, #6366f1);
+        box-shadow: 0 6px 16px rgba(56, 189, 248, .4);
+        transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+    }
+    .btn-pagar:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.08);
+        box-shadow: 0 8px 22px rgba(56, 189, 248, .55);
+    }
+    .metodo-pago-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(144px, 1fr));
+        gap: .75rem;
+    }
+    .metodo-pago-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .4rem;
+        padding: 1rem .6rem .7rem;
+        border-radius: 1rem;
+        border: 1.5px solid #e2e8f0;
+        background: #ffffff;
+        cursor: pointer;
+        text-align: center;
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .metodo-pago-card input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+    .metodo-pago-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px rgba(56, 189, 248, .14);
+    }
+    .metodo-pago-card:has(input:focus-visible) {
+        outline: 2px solid #6366f1;
+        outline-offset: 2px;
+    }
+    .metodo-pago-card svg,
+    .metodo-pago-card .mp-titulo {
+        pointer-events: none;
+    }
+    .metodo-pago-card:has(input:checked),
+    .metodo-pago-card.is-selected {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, .18);
+        background: linear-gradient(135deg, #f8fafc, #eef2ff);
+    }
+    .mp-titulo {
+        font-size: .8rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    .pago-info {
+        border-radius: .9rem;
+        border: 1px dashed #c7d2fe;
+        background: #eef2ff;
+        padding: .75rem 1rem;
+        font-size: .88rem;
+    }
+    .pago-info p {
+        display: flex;
+        gap: .5rem;
+        align-items: flex-start;
+        margin: 0;
+    }
+    .pago-info svg {
+        flex-shrink: 0;
+        margin-top: .1rem;
+    }
+    html[data-theme="dark"] .metodo-pago-card {
+        background: #0f172a;
+        border-color: #334155;
+    }
+    html[data-theme="dark"] .metodo-pago-card:has(input:checked),
+    html[data-theme="dark"] .metodo-pago-card.is-selected {
+        background: linear-gradient(135deg, #1e293b, #312e81);
+        border-color: #818cf8;
+    }
+    html[data-theme="dark"] .pago-info {
+        background: rgba(49, 46, 129, .35);
+        border-color: #4f46e5;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="checkout-title fw-bold mb-1">Finalizar compra</h2>
+        <p class="text-muted mb-0">Elige cómo pagar y dónde recibes tus pedidos.</p>
+    </div>
+    <a href="{% url 'carrito_detalle' %}" class="btn btn-outline-secondary">Volver al carrito</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <h5 class="fw-bold mb-3">Tus pedidos por empresa</h5>
+            {% for grupo in grupos %}
+                <div class="card pay-group shadow-sm border-0 mb-3">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 fw-bold">{{ grupo.empresa.nombre }}</h6>
+                            <span class="small text-muted">Subtotal: <strong>${{ grupo.subtotal }}</strong></span>
+                        </div>
+                        {% for item in grupo.items %}
+                            <div class="d-flex justify-content-between small py-1">
+                                <span>{{ item.cantidad }}x {{ item.producto.nombre }}</span>
+                                <span class="text-muted">${{ item.producto.precio_venta }}</span>
+                            </div>
+                        {% endfor %}
+                        <div class="small text-muted mt-2">Total del pedido: <strong>${{ grupo.subtotal }}</strong></div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            <div class="card pay-group shadow-sm border-0 mb-3">
+                <div class="card-body p-4">
+                    <div class="mb-1">
+                        <label for="id_metodo_pago" class="form-label fw-bold">Método de pago</label>
+                        {{ form.metodo_pago }}
+                    </div>
+                    <div id="pago-info" class="pago-info mb-3">
+                        {% for m in metodos_pago %}
+                            <p data-metodo="{{ m.value }}"{% if not forloop.first %} hidden{% endif %}>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                <span>{{ m.detalle }}</span>
+                            </p>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-1">
+                        <label for="id_direccion_entrega" class="form-label fw-bold">Dirección de entrega</label>
+                        {{ form.direccion_entrega }}
+                    </div>
+                    <div class="form-text">La dirección se aplicará a {{ grupos|length }} pedido{{ grupos|length|pluralize }}.</div>
+                    <div class="row g-2 align-items-end mt-3">
+                        <div class="col-6">
+                            <label for="id_latitud" class="form-label small fw-bold">Latitud</label>
+                            {{ form.latitud }}
+                        </div>
+                        <div class="col-6">
+                            <label for="id_longitud" class="form-label small fw-bold">Longitud</label>
+                            {{ form.longitud }}
+                        </div>
+                        <div class="col-12">
+                            <button type="button" id="btn-geo" class="btn btn-outline-primary btn-sm">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                Usar mi ubicación actual
+                            </button>
+                        </div>
+                        <div class="col-12">
+                            <div id="geo-msg" class="form-text d-none"></div>
+                        </div>
+                    </div>
+                    <div class="form-text">Con tus coordenadas el empleado sabrá dónde entregarte y verá tu pedido cerca de su ubicación.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card sum-card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Resumen</h5>
+                    <div class="d-flex justify-content-between mb-2 text-muted small">
+                        <span>Pedidos a crear</span>
+                        <span>{{ grupos|length }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 text-muted small">
+                        <span>Productos</span>
+                        <span>{{ items|length }}</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="fw-bold">Total</span>
+                        <span class="fw-bold fs-4">${{ total }}</span>
+                    </div>
+                    <button type="submit" class="btn-pagar w-100">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        Realizar {{ grupos|length }} pedido{{ grupos|length|pluralize }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<script>
+(function () {
+    function marcarCards() {
+        document.querySelectorAll('input[name="metodo_pago"]').forEach(function (r) {
+            var card = r.closest('label');
+            if (card) { card.classList.toggle('is-selected', r.checked); }
+        });
+    }
+    function aplicarPago() {
+        var sel = document.querySelector('input[name="metodo_pago"]:checked');
+        var valor = sel ? sel.value : null;
+        document.querySelectorAll('#pago-info [data-metodo]').forEach(function (p) {
+            p.hidden = p.getAttribute('data-metodo') !== valor;
+        });
+        marcarCards();
+    }
+    document.querySelectorAll('input[name="metodo_pago"]').forEach(function (r) {
+        r.addEventListener('change', aplicarPago);
+    });
+    aplicarPago();
+})();
+
+(function () {
+    var btn = document.getElementById('btn-geo');
+    var lat = document.getElementById('id_latitud');
+    var lon = document.getElementById('id_longitud');
+    var msg = document.getElementById('geo-msg');
+    if (!btn || !lat || !lon) return;
+    function aviso(texto, tipo) {
+        msg.textContent = texto;
+        msg.className = 'form-text ' + (tipo === 'error' ? 'text-danger' : 'text-success');
+        msg.classList.remove('d-none');
+    }
+    btn.addEventListener('click', function () {
+        if (!('geolocation' in navigator)) {
+            aviso('Tu navegador no permite conocer tu ubicación. Escríbela manualmente.', 'error');
+            return;
+        }
+        btn.disabled = true;
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                lat.value = pos.coords.latitude.toFixed(6);
+                lon.value = pos.coords.longitude.toFixed(6);
+                aviso('Ubicación capturada. Puedes ajustarla manualmente si lo deseas.');
+                btn.disabled = false;
+            },
+            function () {
+                aviso('No se pudo obtener tu ubicación. Escríbela manualmente.', 'error');
+                btn.disabled = false;
+            },
+            { enableHighAccuracy: true, timeout: 9000 }
+        );
+    });
+})();
+</script>
+{% endblock %}
